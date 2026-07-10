@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-blue: #082f93;
+  --background-light: #f4f8f9;
+  --dark-text: #212328;
+  --muted-blue: #8395bd;
+  --deep-blue: #1f3b80;
+  --soft-blue-gray: #bfc9dc;
+  --medium-blue: #4b629d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--background-light);
+  color: var(--dark-text);
+  font-family: Inter, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Hide browser-native password reveal/clear controls */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear,
+.password-input::-ms-reveal,
+.password-input::-ms-clear {
+  display: none;
+}
+
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-strong-password-auto-fill-button,
+.password-input::-webkit-credentials-auto-fill-button,
+.password-input::-webkit-strong-password-auto-fill-button {
+  display: none !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+input[type="password"],
+.password-input {
+  appearance: none;
+  -webkit-appearance: none;
+}
