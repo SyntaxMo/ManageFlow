@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
+import { DEV_FAST_AUTH } from "@/config/development";
 import type { Team, University } from "@/lib/db/types";
 import type { UserRole } from "@/lib/auth/permissions";
 
@@ -123,6 +124,27 @@ export default function RegisterPage() {
   );
 
   const isOtherUniversitySelected = selectedUniversity?.name === "Other";
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkAuth() {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (isMounted && user) {
+        router.replace("/dashboard");
+      }
+    }
+
+    checkAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
 
   useEffect(() => {
     let isMounted = true;
@@ -237,90 +259,141 @@ export default function RegisterPage() {
     selectedTeamId: string | null
   ) {
     const supabase = createClient();
+    const profileStatus = DEV_FAST_AUTH ? "active" : "pending";
 
-    const { error: profileError } = await supabase.from("profiles").insert({
-      id: userId,
-      full_name: fullName,
-      email,
-      role,
-      job_title: jobTitle,
-      team_id: selectedTeamId,
-      status: "pending",
-    });
+    const { error: profileError } = await supabase.from("profiles").upsert(
+      {
+        id: userId,
+        full_name: fullName,
+        email,
+        role,
+        job_title: jobTitle,
+        team_id: selectedTeamId,
+        status: profileStatus,
+      },
+      {
+        onConflict: "id",
+      }
+    );
 
     if (profileError) {
+      console.error("Failed to create profile:", profileError);
       throw new Error(`Failed to create profile: ${profileError.message}`);
     }
 
     let scheduleTotalHours: number | null = null;
 
     if (role === "intern") {
-      if (isUniversityRequirement) {
-        const { error: trainingError } = await supabase
-          .from("intern_training_details")
-          .insert({
+      const trainingPayload = isUniversityRequirement
+        ? {
             user_id: userId,
             is_university_requirement: true,
             university_id: universityId || null,
             university_name_other: isOtherUniversitySelected
               ? universityNameOther.trim() || null
               : null,
-          });
-
-        if (trainingError) {
-          throw new Error(
-            `Failed to save university training details: ${trainingError.message}`
-          );
-        }
-      } else {
-        const { error: trainingError } = await supabase
-          .from("intern_training_details")
-          .insert({
+          }
+        : {
             user_id: userId,
             is_university_requirement: false,
             university_id: null,
             university_name_other: null,
-          });
+          };
+
+      const { data: existingTraining } = await supabase
+        .from("intern_training_details")
+        .select("id")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (!existingTraining) {
+        const { error: trainingError } = await supabase
+          .from("intern_training_details")
+          .insert(trainingPayload);
 
         if (trainingError) {
+          console.error(
+            "Failed to save university training details:",
+            trainingError
+          );
           throw new Error(
             `Failed to save university training details: ${trainingError.message}`
           );
         }
       }
 
-      const { data: scheduleData, error: scheduleError } = await supabase
+      const { data: existingSchedule } = await supabase
         .from("work_schedules")
-        .insert({
-          user_id: userId,
-          total_weekly_hours: totalHours,
-          status: "pending",
-        })
         .select("id")
-        .single();
+        .eq("user_id", userId)
+        .maybeSingle();
 
-      if (scheduleError || !scheduleData) {
-        throw new Error(
-          `Failed to create schedule: ${scheduleError?.message ?? "Unknown error"}`
-        );
+      let scheduleId: string;
+
+      if (existingSchedule) {
+        const { error: scheduleUpdateError } = await supabase
+          .from("work_schedules")
+          .update({
+            total_weekly_hours: totalHours,
+            status: "pending",
+          })
+          .eq("id", existingSchedule.id);
+
+        if (scheduleUpdateError) {
+          console.error("Failed to save weekly schedule:", scheduleUpdateError);
+          throw new Error(
+            `Failed to save weekly schedule: ${scheduleUpdateError.message}`
+          );
+        }
+
+        scheduleId = existingSchedule.id;
+      } else {
+        const { data: scheduleData, error: scheduleError } = await supabase
+          .from("work_schedules")
+          .insert({
+            user_id: userId,
+            total_weekly_hours: totalHours,
+            status: "pending",
+          })
+          .select("id")
+          .single();
+
+        if (scheduleError || !scheduleData) {
+          console.error("Failed to save weekly schedule:", scheduleError);
+          throw new Error(
+            `Failed to save weekly schedule: ${scheduleError?.message ?? "Unknown error"}`
+          );
+        }
+
+        scheduleId = scheduleData.id;
       }
 
       scheduleTotalHours = totalHours;
 
-      const blocksToInsert = scheduleBlocks.map((block) => ({
-        schedule_id: scheduleData.id,
-        day_of_week: block.day_of_week,
-        start_time: block.start_time,
-        end_time: block.end_time,
-        calculated_hours: block.calculated_hours,
-      }));
-
-      const { error: blocksError } = await supabase
+      const { count: existingBlockCount } = await supabase
         .from("work_schedule_blocks")
-        .insert(blocksToInsert);
+        .select("*", { count: "exact", head: true })
+        .eq("schedule_id", scheduleId);
 
-      if (blocksError) {
-        throw new Error(`Failed to save schedule blocks: ${blocksError.message}`);
+      if (!existingBlockCount || existingBlockCount === 0) {
+        const blocksToInsert = scheduleBlocks.map((block) => ({
+          schedule_id: scheduleId,
+          day_of_week: block.day_of_week,
+          start_time: block.start_time,
+          end_time: block.end_time,
+          calculated_hours: block.calculated_hours,
+        }));
+
+        const { error: blocksError } = await supabase
+          .from("work_schedule_blocks")
+          .insert(blocksToInsert);
+
+        if (blocksError) {
+          console.error("Failed to save schedule days:", blocksError);
+          throw new Error(
+            `Failed to save schedule days: ${blocksError.message}`
+          );
+        }
       }
     }
 
@@ -382,46 +455,108 @@ export default function RegisterPage() {
 
     setIsLoading(true);
 
+    let authUserCreated = false;
+
     try {
       const supabase = createClient();
 
-      const { data: authData, error: signUpError } =
-        await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-            data: {
-              full_name: fullName,
-              role: selectedRole.value,
-              job_title: selectedRole.jobTitle,
-              team_id: teamId || null,
-              is_university_requirement: isIntern
-                ? isUniversityRequirement
-                : false,
-              university_id: isIntern && isUniversityRequirement ? universityId : null,
-              university_name_other:
-                isIntern && isUniversityRequirement && isOtherUniversitySelected
-                  ? universityNameOther.trim()
-                  : null,
-            },
+      let authData: Awaited<
+        ReturnType<typeof supabase.auth.signUp>
+      >["data"] | null = null;
+      let signUpError: Awaited<
+        ReturnType<typeof supabase.auth.signUp>
+      >["error"] | null = null;
+
+      const signUpResult = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            full_name: fullName,
+            role: selectedRole.value,
+            job_title: selectedRole.jobTitle,
+            team_id: teamId || null,
+            is_university_requirement: isIntern
+              ? isUniversityRequirement
+              : false,
+            university_id:
+              isIntern && isUniversityRequirement ? universityId : null,
+            university_name_other:
+              isIntern && isUniversityRequirement && isOtherUniversitySelected
+                ? universityNameOther.trim()
+                : null,
           },
-        });
+        },
+      });
+
+      authData = signUpResult.data;
+      signUpError = signUpResult.error;
 
       if (signUpError) {
-        setError(signUpError.message);
+        const isExistingUser =
+          signUpError.message.toLowerCase().includes("already registered") ||
+          signUpError.message.toLowerCase().includes("already been registered");
+
+        if (isExistingUser) {
+          const { data: signInData, error: signInError } =
+            await supabase.auth.signInWithPassword({
+              email,
+              password,
+            });
+
+          if (signInError || !signInData.user) {
+            console.error("Failed to create authentication account:", signUpError);
+            setError(
+              `Failed to create authentication account: ${signUpError.message}`
+            );
+            return;
+          }
+
+          authData = { user: signInData.user, session: signInData.session };
+          signUpError = null;
+        } else {
+          console.error("Failed to create authentication account:", signUpError);
+          setError(
+            `Failed to create authentication account: ${signUpError.message}`
+          );
+          return;
+        }
+      }
+
+      if (!authData?.user) {
+        setError("Failed to create authentication account. Please try again.");
         return;
       }
 
-      if (!authData.user) {
-        setError("Registration failed. Please try again.");
-        return;
+      authUserCreated = true;
+
+      let hasSession = Boolean(authData.session);
+
+      if (!hasSession) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (!signInError) {
+          hasSession = true;
+        } else if (!DEV_FAST_AUTH) {
+          setSuccess(
+            "Account created. Please check your email to confirm your account. After confirming, you will be redirected to your dashboard."
+          );
+          return;
+        } else {
+          console.error("Authentication session was not created:", signInError);
+          setError(
+            "The account was created, but Supabase email confirmation is still enabled. Disable Confirm email in the Supabase Email provider settings to use instant development registration."
+          );
+          return;
+        }
       }
 
-      if (!authData.session) {
-        setSuccess(
-          "Account created. Please check your email to confirm your account. After confirming, you will be redirected to your dashboard."
-        );
+      if (!hasSession) {
+        setError("Authentication session was not created. Please try again.");
         return;
       }
 
@@ -432,12 +567,21 @@ export default function RegisterPage() {
         teamId || null
       );
 
-      router.push("/dashboard");
+      router.replace("/dashboard");
       router.refresh();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "An unexpected error occurred."
-      );
+      console.error("Registration error:", err);
+      if (authUserCreated) {
+        setError(
+          err instanceof Error
+            ? `Your authentication account was created, but profile setup failed. ${err.message} Please retry registration or check the console error.`
+            : "Your authentication account was created, but profile setup failed. Please retry registration or check the console error."
+        );
+      } else {
+        setError(
+          err instanceof Error ? err.message : "An unexpected error occurred."
+        );
+      }
     } finally {
       setIsLoading(false);
     }

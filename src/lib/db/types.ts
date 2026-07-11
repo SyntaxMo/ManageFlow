@@ -117,6 +117,56 @@ export type DailyReport = {
   profiles?: { full_name: string; email: string } | null;
 };
 
+export type PendingManagerAssignmentRequest = {
+  request_id: string;
+  intern_id: string;
+  intern_name: string | null;
+  intern_email: string | null;
+  intern_job_title: string | null;
+  team_id: string;
+  team_name: string | null;
+  requested_at: string;
+};
+
+export type ManagerAssignmentRequest = {
+  id: string;
+  intern_id: string;
+  project_manager_id: string;
+  team_id: string;
+  status: string;
+  created_at: string;
+  resolved_at: string | null;
+  intern?: Pick<Profile, "id" | "full_name" | "email" | "team_id"> & {
+    teams?: { name: string } | null;
+  } | null;
+  project_manager?: Pick<Profile, "id" | "full_name" | "email" | "job_title"> | null;
+  team?: { name: string } | null;
+};
+
+export type ManagerHierarchy = {
+  id: string;
+  manager_id: string;
+  user_id: string;
+  relationship_type: string;
+  created_at: string;
+  intern?: Pick<Profile, "id" | "full_name" | "email" | "team_id"> & {
+    teams?: { name: string } | null;
+  } | null;
+  manager?: Pick<Profile, "id" | "full_name" | "email" | "job_title"> & {
+    teams?: { name: string } | null;
+  } | null;
+};
+
+export type NotificationRecord = {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: string;
+  is_read: boolean;
+  created_at: string;
+};
+
 export type MeetingRequest = {
   id: string;
   requested_by: string;

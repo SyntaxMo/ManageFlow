@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { DEV_FAST_AUTH } from "@/config/development";
 import type { UserRole } from "@/lib/auth/permissions";
 
 export async function GET(request: Request) {
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
       role,
       job_title: jobTitle,
       team_id: teamId,
-      status: "pending",
+      status: DEV_FAST_AUTH ? "active" : "pending",
     });
 
     if (profileError) {

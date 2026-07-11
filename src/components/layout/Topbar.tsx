@@ -1,5 +1,5 @@
-import { Bell } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { NotificationsBell } from "@/components/layout/NotificationsBell";
 import type { UserRole } from "@/lib/auth/permissions";
 
 interface TopbarProps {
@@ -22,13 +22,7 @@ export function Topbar({ title, subtitle, role, status }: TopbarProps) {
           {status}
         </Badge>
         <Badge variant="default">{role.replace(/_/g, " ")}</Badge>
-        <button
-          type="button"
-          className="rounded-lg border border-border p-2 text-muted transition-colors hover:bg-background hover:text-ink"
-          aria-label="Notifications"
-        >
-          <Bell className="h-5 w-5" />
-        </button>
+        <NotificationsBell />
       </div>
     </header>
   );

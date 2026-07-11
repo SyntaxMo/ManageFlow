@@ -71,6 +71,7 @@ export function ReportReviewTable({
       });
 
       router.refresh();
+      window.dispatchEvent(new Event("pm-dashboard-refresh"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update report.");
     } finally {

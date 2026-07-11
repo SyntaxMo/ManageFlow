@@ -18,14 +18,19 @@ export default async function MeetingRequestsPage() {
     redirect("/login");
   }
 
-  const { profile } = data;
-  const role = profile.role as UserRole;
+  const { profile: initialProfile } = data;
+  const role = initialProfile.role as UserRole;
 
   if (!canRequestMeeting(role)) {
     redirect("/dashboard");
   }
 
   const supabase = await createClient();
+  const profile = initialProfile;
+
+  if (role === "intern" && !profile.manager_id) {
+    redirect("/dashboard");
+  }
 
   const { data: meetings } = await supabase
     .from("meeting_requests")
@@ -66,12 +71,12 @@ export default async function MeetingRequestsPage() {
   let projects: Project[] = [];
 
   if (role === "intern" && profile.manager_id) {
-    const { data } = await supabase
+    const { data: manager } = await supabase
       .from("profiles")
       .select("id, full_name, email")
       .eq("id", profile.manager_id)
       .maybeSingle();
-    if (data) recipients = [data as Profile];
+    if (manager) recipients = [manager as Profile];
   } else if (role === "project_manager") {
     if (profile.manager_id) {
       const { data: tl } = await supabase
@@ -82,12 +87,12 @@ export default async function MeetingRequestsPage() {
       if (tl) recipients = [tl as Profile];
     }
   } else if (role === "team_lead") {
-    const { data } = await supabase
+    const { data: pms } = await supabase
       .from("profiles")
       .select("id, full_name, email")
       .eq("manager_id", profile.id)
       .eq("role", "project_manager");
-    recipients = (data ?? []) as Profile[];
+    recipients = (pms ?? []) as Profile[];
   }
 
   if (recipients.length > 0 || role !== "intern") {

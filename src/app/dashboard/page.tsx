@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/server";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { AccountStatusBanner } from "@/components/dashboard/AccountStatusBanner";
 import { AdminStats } from "@/components/dashboard/admin/AdminStats";
-import { ProfileSummaryCard } from "@/components/dashboard/ProfileSummaryCard";
 import { InternDashboard } from "@/components/dashboard/views/InternDashboard";
 import { ProjectManagerDashboard } from "@/components/dashboard/views/ProjectManagerDashboard";
 import { TeamLeadDashboard } from "@/components/dashboard/views/TeamLeadDashboard";
@@ -45,12 +44,9 @@ export default async function DashboardPage() {
       <AccountStatusBanner status={profile.status} />
 
       {role === "admin" && (
-        <>
-          <div className="mb-6">
-            <AdminStats counts={await getAdminDashboardCounts()} />
-          </div>
-          <ProfileSummaryCard profile={profileWithTeam} />
-        </>
+        <div className="mb-6">
+          <AdminStats counts={await getAdminDashboardCounts()} />
+        </div>
       )}
 
       {role === "intern" && (
@@ -66,7 +62,10 @@ export default async function DashboardPage() {
       )}
 
       {!["admin", "intern", "project_manager", "team_lead"].includes(role) && (
-        <ProfileSummaryCard profile={profileWithTeam} />
+        <div className="rounded-xl border border-dashed border-border bg-white p-8 text-center text-sm text-muted">
+          Your role dashboard overview will appear here. Visit Profile in the
+          sidebar for account details.
+        </div>
       )}
     </DashboardShell>
   );

@@ -39,12 +39,22 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isProtectedRoute = request.nextUrl.pathname.startsWith("/dashboard");
+  const isAuthRoute =
+    request.nextUrl.pathname === "/login" ||
+    request.nextUrl.pathname === "/register";
 
   if (isProtectedRoute && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", request.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  if (isAuthRoute && user) {
+    const dashboardUrl = request.nextUrl.clone();
+    dashboardUrl.pathname = "/dashboard";
+    dashboardUrl.search = "";
+    return NextResponse.redirect(dashboardUrl);
   }
 
   return supabaseResponse;

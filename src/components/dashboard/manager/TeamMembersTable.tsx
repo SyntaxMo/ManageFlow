@@ -1,5 +1,6 @@
 import { Users } from "lucide-react";
-import type { Profile } from "@/lib/db/types";
+import type { PmMemberAttendanceStat } from "@/lib/data/dashboard";
+import { PM_ATTENDANCE_LABELS } from "@/lib/attendance";
 import { Badge } from "@/components/ui/Badge";
 import {
   Card,
@@ -19,34 +20,15 @@ import {
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
   formatLabel,
-  getCheckInStatusBadge,
   getReviewStatusBadge,
   getUserStatusBadge,
 } from "@/lib/db/status";
 
-type MemberStat = {
-  member: Profile;
-  checkIn: { status: string } | null;
-  report: { review_status: string } | null;
-  scheduledToday: boolean;
-  taskTotal: number;
-  taskDone: number;
-  taskProgress: number;
-};
-
-function attendanceLabel(stat: MemberStat) {
-  if (!stat.scheduledToday) return "Not scheduled";
-  if (!stat.checkIn) return "Missing";
-  return formatLabel(stat.checkIn.status);
-}
-
-function attendanceVariant(stat: MemberStat) {
-  if (!stat.scheduledToday) return "muted" as const;
-  if (!stat.checkIn) return "danger" as const;
-  return getCheckInStatusBadge(stat.checkIn.status);
-}
-
-export function TeamMembersTable({ memberStats }: { memberStats: MemberStat[] }) {
+export function TeamMembersTable({
+  memberStats,
+}: {
+  memberStats: PmMemberAttendanceStat[];
+}) {
   return (
     <Card>
       <CardHeader>
@@ -85,8 +67,22 @@ export function TeamMembersTable({ memberStats }: { memberStats: MemberStat[] })
                     </Badge>
                   </DataTableCell>
                   <DataTableCell>
-                    <Badge variant={attendanceVariant(stat)}>
-                      {attendanceLabel(stat)}
+                    <Badge
+                      variant={
+                        stat.attendanceStatus === "completed"
+                          ? "success"
+                          : stat.attendanceStatus === "checked_in"
+                            ? "default"
+                            : stat.attendanceStatus === "late"
+                              ? "warning"
+                              : stat.attendanceStatus === "absent"
+                                ? "danger"
+                                : stat.attendanceStatus === "not_checked_in"
+                                  ? "warning"
+                                  : "muted"
+                      }
+                    >
+                      {PM_ATTENDANCE_LABELS[stat.attendanceStatus]}
                     </Badge>
                   </DataTableCell>
                   <DataTableCell>
@@ -113,12 +109,18 @@ export function TeamMembersTable({ memberStats }: { memberStats: MemberStat[] })
   );
 }
 
-export function AttendanceSummary({ memberStats }: { memberStats: MemberStat[] }) {
+export function AttendanceSummary({
+  memberStats,
+}: {
+  memberStats: PmMemberAttendanceStat[];
+}) {
   const scheduled = memberStats.filter((s) => s.scheduledToday);
-  const checkedIn = scheduled.filter(
-    (s) => s.checkIn && ["checked_in", "completed", "late"].includes(s.checkIn.status)
+  const checkedIn = scheduled.filter((s) =>
+    ["checked_in", "completed", "late"].includes(s.attendanceStatus)
   );
-  const missing = scheduled.filter((s) => !s.checkIn);
+  const missing = scheduled.filter(
+    (s) => s.attendanceStatus === "absent" || s.attendanceStatus === "not_checked_in"
+  );
   const reportsSubmitted = memberStats.filter((s) => s.report).length;
   const reportsMissing = memberStats.length - reportsSubmitted;
 

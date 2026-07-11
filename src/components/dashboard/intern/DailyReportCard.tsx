@@ -26,15 +26,15 @@ export function DailyReportCard({
   canAct,
 }: DailyReportCardProps) {
   return (
-    <Card>
-      <CardHeader>
+    <Card className="h-full">
+      <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-accent" />
-          <CardTitle>Daily Report</CardTitle>
+          <FileText className="h-4 w-4 text-accent" />
+          <CardTitle className="text-base">Daily Report</CardTitle>
         </div>
-        <CardDescription>Today&apos;s submission status</CardDescription>
+        <CardDescription className="text-xs">Today&apos;s submission</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {todayReport ? (
           <div className="space-y-2">
             <Badge variant={getReviewStatusBadge(todayReport.review_status)}>
@@ -55,7 +55,7 @@ export function DailyReportCard({
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-muted">
-              You have not submitted today&apos;s daily report yet.
+              Not submitted. You have not submitted today&apos;s daily report yet.
             </p>
             {canAct ? (
               <Link href="/dashboard/reports/new">

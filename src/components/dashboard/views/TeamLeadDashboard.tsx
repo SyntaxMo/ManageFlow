@@ -1,6 +1,5 @@
 import type { Profile, Project } from "@/lib/db/types";
 import { getTeamLeadDashboardData } from "@/lib/data/dashboard";
-import { ProfileSummaryCard } from "@/components/dashboard/ProfileSummaryCard";
 import { MeetingRequestsPanel } from "@/components/dashboard/manager/MeetingRequestsPanel";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -40,8 +39,6 @@ export async function TeamLeadDashboard({ profile }: { profile: Profile }) {
 
   return (
     <div className="space-y-6">
-      <ProfileSummaryCard profile={profile} />
-
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Project managers" value={data.projectManagers.length} />
         <Stat label="Managed members" value={data.totalManagedMembers} />

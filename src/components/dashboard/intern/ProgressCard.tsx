@@ -16,6 +16,7 @@ interface ProgressCardProps {
 
 export function ProgressCard({ tasks }: ProgressCardProps) {
   const today = getLocalDateString();
+  const todo = tasks.filter((t) => t.status === "todo").length;
   const done = tasks.filter((t) => t.status === "done").length;
   const inProgress = tasks.filter((t) => t.status === "in_progress").length;
   const blocked = tasks.filter((t) => t.status === "blocked").length;
@@ -46,6 +47,7 @@ export function ProgressCard({ tasks }: ProgressCardProps) {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Stat label="Total tasks" value={tasks.length} />
+            <Stat label="To do" value={todo} />
             <Stat label="Done" value={done} />
             <Stat label="In progress" value={inProgress} />
             <Stat label="Blocked" value={blocked} />

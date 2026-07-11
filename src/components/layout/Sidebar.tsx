@@ -1,25 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  FileText,
-  LayoutDashboard,
-  LogOut,
-  Settings,
-  Shield,
-  CalendarClock,
-} from "lucide-react";
+import { LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { getSidebarNavItems } from "@/lib/auth/navigation";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
-import {
-  canRequestMeeting,
-  canReviewReports,
-  canViewAdminPanel,
-  type UserRole,
-} from "@/lib/auth/permissions";
-import { isAccountActive } from "@/lib/db/status";
+import type { UserRole } from "@/lib/auth/permissions";
 
 interface SidebarProps {
   fullName: string;
@@ -30,33 +19,42 @@ interface SidebarProps {
 export function Sidebar({ fullName, role, status }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const isActive = isAccountActive(status);
+  const [hasAssignedManager, setHasAssignedManager] = useState(false);
 
-  const navItems = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
-    { href: "/dashboard/settings", label: "Settings", icon: Settings, show: true },
-    {
-      href: "/dashboard/reports",
-      label: "Daily Reports",
-      icon: FileText,
-      show:
-        isActive &&
-        (role === "intern" ||
-          canReviewReports(role)),
-    },
-    {
-      href: "/dashboard/meeting-requests",
-      label: "Meeting Requests",
-      icon: CalendarClock,
-      show: isActive && canRequestMeeting(role),
-    },
-    {
-      href: "/dashboard/admin/users",
-      label: "Admin Users",
-      icon: Shield,
-      show: canViewAdminPanel(role),
-    },
-  ].filter((item) => item.show);
+  useEffect(() => {
+    if (role !== "intern") return;
+
+    let isMounted = true;
+
+    async function loadManagerStatus() {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !isMounted) return;
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("manager_id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (isMounted) {
+        setHasAssignedManager(Boolean(data?.manager_id));
+      }
+    }
+
+    loadManagerStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [role, pathname]);
+
+  const navItems = getSidebarNavItems(role, status, {
+    hasAssignedManager: role === "intern" ? hasAssignedManager : undefined,
+  });
 
   async function handleLogout() {
     const supabase = createClient();

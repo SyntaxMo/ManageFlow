@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -25,6 +25,7 @@ import {
 
 interface MeetingRequestCardProps {
   userId: string;
+  managerId: string | null;
   manager: Profile | null;
   projects: Project[];
   meetings: MeetingRequest[];
@@ -33,12 +34,19 @@ interface MeetingRequestCardProps {
 
 export function MeetingRequestCard({
   userId,
-  manager,
+  managerId,
+  manager: initialManager,
   projects,
-  meetings,
+  meetings: initialMeetings,
   canAct,
 }: MeetingRequestCardProps) {
   const router = useRouter();
+  const [manager, setManager] = useState<Profile | null>(initialManager);
+  const [meetings, setMeetings] = useState(initialMeetings);
+  const [managerLoading, setManagerLoading] = useState(
+    Boolean(managerId && !initialManager)
+  );
+  const [managerError, setManagerError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [reason, setReason] = useState("");
   const [preferredDate, setPreferredDate] = useState("");
@@ -47,6 +55,55 @@ export function MeetingRequestCard({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const loadManager = useCallback(async () => {
+    if (!managerId) {
+      setManager(null);
+      setManagerLoading(false);
+      return;
+    }
+
+    setManagerLoading(true);
+    setManagerError(null);
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, job_title")
+        .eq("id", managerId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Failed to load meeting manager:", error);
+        throw new Error(error.message);
+      }
+
+      setManager((data as Profile | null) ?? null);
+    } catch (err) {
+      console.error("Meeting manager load error:", err);
+      setManagerError(
+        err instanceof Error ? err.message : "Failed to load project manager."
+      );
+      setManager(null);
+    } finally {
+      setManagerLoading(false);
+    }
+  }, [managerId]);
+
+  useEffect(() => {
+    setMeetings(initialMeetings);
+  }, [initialMeetings]);
+
+  useEffect(() => {
+    if (initialManager) {
+      setManager(initialManager);
+      setManagerLoading(false);
+      return;
+    }
+
+    loadManager();
+  }, [initialManager, loadManager]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -107,7 +164,13 @@ export function MeetingRequestCard({
         <CardDescription>Request a meeting with your project manager</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {!manager ? (
+        {managerLoading ? (
+          <p className="text-sm text-muted">Loading project manager...</p>
+        ) : managerError ? (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {managerError}
+          </p>
+        ) : !manager ? (
           <EmptyState
             title="No project manager assigned"
             description="No project manager assigned yet."
@@ -115,7 +178,8 @@ export function MeetingRequestCard({
         ) : canAct ? (
           <form onSubmit={handleSubmit} className="space-y-3">
             <p className="text-sm text-muted">
-              Manager: <span className="font-medium text-ink">{manager.full_name}</span>
+              Request Meeting with{" "}
+              <span className="font-medium text-ink">{manager.full_name}</span>
             </p>
             <Input
               label="Title"
