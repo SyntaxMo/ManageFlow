@@ -9,8 +9,13 @@ import type {
 import { findWeekGoal } from "@/lib/weekly-summary/goals";
 import { parseTemplateSections } from "@/lib/weekly-summary/template";
 import {
+  buildInternshipTimeline,
+  getTimelineWeekGoal,
+} from "@/lib/timeline/internship-timeline";
+import {
   calculateProjectWeeks,
   getCurrentProjectWeekNumber,
+  getTodayInAppTimezone,
   getWeekByNumber,
   resolveSelectedWeekNumber,
   type ProjectWeek,
@@ -207,14 +212,20 @@ export async function getPmWeeklySummaryPageData(
   const template = (templateRes.data as Template | null) ?? null;
   const templateSections = parseTemplateSections(template?.content ?? null);
 
-  const selectedGoal =
-    selectedWeek && timelineRes.data
-      ? findWeekGoal(
-          timelineRes.data as ProjectTimelineItem[],
-          selectedWeek.weekStart,
-          selectedWeek.weekEnd
-        )
-      : null;
+  const timelineItems = (timelineRes.data ?? []) as ProjectTimelineItem[];
+  const internshipTimeline = buildInternshipTimeline(
+    project,
+    timelineItems,
+    getTodayInAppTimezone()
+  );
+
+  const selectedGoal = selectedWeek
+    ? findWeekGoal(
+        timelineItems,
+        selectedWeek.weekStart,
+        selectedWeek.weekEnd
+      ) ?? getTimelineWeekGoal(internshipTimeline, selectedWeek.weekNumber)
+    : null;
 
   let summary: WeeklySummary | null = null;
   if (selectedWeekNumber && managerTeamId) {

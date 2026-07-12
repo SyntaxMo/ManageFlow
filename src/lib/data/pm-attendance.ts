@@ -4,19 +4,24 @@ import type {
   DailyReport,
   Profile,
   Project,
+  ReportFile,
   WorkScheduleBlock,
 } from "@/lib/db/types";
 import { formatIsoDate } from "@/lib/dashboard/helpers";
 import {
   buildAttendanceSummaryCounts,
   calculateAbsencePercentage,
+  calculateFinalAttendanceStatus,
   formatCheckInClockTime,
-  getPmInternAttendanceStatusForDate,
+  formatCheckOutClockTime,
+  formatHoursProgress,
   getScheduleBlockForDate,
-  isReportSubmitted,
-  mapPmAttendanceDisplayLabel,
+  mapCalculationToDisplayLabel,
+  type AttendanceCalculationResult,
   type AttendanceDisplayLabel,
 } from "@/lib/attendance/pm-attendance";
+import { isDailyReportCompleteForAttendance } from "@/lib/attendance/intern-report";
+import { DAILY_REPORT_FILE_CATEGORY } from "@/lib/reports/constants";
 import { isValidAttendanceDate } from "@/lib/attendance/validation";
 import { getTodayInAppTimezone } from "@/lib/weekly-summary/weeks";
 
@@ -41,9 +46,11 @@ export type PmAttendanceMemberRow = {
   checkIn: CheckIn | null;
   report: DailyReport | null;
   dateBlock: WorkScheduleBlock | null;
-  attendanceStatus: ReturnType<typeof getPmInternAttendanceStatusForDate>;
+  attendanceCalculation: AttendanceCalculationResult;
   attendanceLabel: AttendanceDisplayLabel;
   checkInTime: string | null;
+  checkOutTime: string | null;
+  hoursLabel: string;
   absencePercentage: number | null;
   hasSubmittedReport: boolean | null;
   scheduleId: string | null;
@@ -175,7 +182,7 @@ export async function getPmAttendancePageData(
       .eq("report_date", selectedDate),
     supabase
       .from("daily_reports")
-      .select("user_id, report_date, review_status")
+      .select("id, user_id, report_date, review_status")
       .in("user_id", memberIds)
       .gte("report_date", earliestPeriodStart)
       .lte("report_date", selectedDate),
@@ -221,6 +228,32 @@ export async function getPmAttendancePageData(
   const historicalReports =
     reportsLoadState === "loaded" ? (historicalReportsRes.data ?? []) : [];
 
+  const reportIds = [
+    ...reports.map((report) => report.id),
+    ...historicalReports.map((row) => row.id as string),
+  ];
+  const filesByReportId = new Map<string, ReportFile>();
+
+  if (reportsLoadState === "loaded" && reportIds.length > 0) {
+    const { data: fileRows, error: filesError } = await supabase
+      .from("files")
+      .select("*")
+      .in("report_id", reportIds)
+      .eq("file_category", DAILY_REPORT_FILE_CATEGORY);
+
+    if (filesError) {
+      reportsLoadState = "error";
+      errors.push("We could not load daily report files.");
+      console.error("Failed to load report files:", filesError.message);
+    } else {
+      for (const file of (fileRows ?? []) as ReportFile[]) {
+        if (file.report_id) {
+          filesByReportId.set(file.report_id, file);
+        }
+      }
+    }
+  }
+
   const scheduleIds = (schedulesRes.data ?? []).map(
     (schedule: { id: string }) => schedule.id
   );
@@ -252,21 +285,20 @@ export async function getPmAttendancePageData(
     const checkIn =
       selectedDateCheckIns.find((row) => row.user_id === member.id) ?? null;
     const report = reports.find((row) => row.user_id === member.id) ?? null;
+    const reportFile = report ? filesByReportId.get(report.id) ?? null : null;
     const hasSubmittedReport =
       reportsLoadState === "loaded"
-        ? report
-          ? isReportSubmitted(report.review_status)
-          : false
+        ? isDailyReportCompleteForAttendance(report, reportFile)
         : null;
 
-    const attendanceStatus = getPmInternAttendanceStatusForDate({
-      selectedDate,
+    const attendanceCalculation = calculateFinalAttendanceStatus({
+      date: selectedDate,
       today,
       dateBlock,
       checkIn,
       hasSubmittedReport: hasSubmittedReport === true,
     });
-    const attendanceLabel = mapPmAttendanceDisplayLabel(attendanceStatus);
+    const attendanceLabel = mapCalculationToDisplayLabel(attendanceCalculation);
 
     const memberHistorical = historicalCheckIns.filter(
       (row) => row.user_id === member.id
@@ -277,10 +309,14 @@ export async function getPmAttendancePageData(
     const reportsByDate = new Map(
       historicalReports
         .filter((row) => row.user_id === member.id)
-        .map((row) => [
-          row.report_date as string,
-          isReportSubmitted(row.review_status as string),
-        ])
+        .map((row) => {
+          const reportRow = row as DailyReport;
+          const file = filesByReportId.get(reportRow.id) ?? null;
+          return [
+            reportRow.report_date,
+            isDailyReportCompleteForAttendance(reportRow, file),
+          ] as const;
+        })
     );
 
     const absencePercentage =
@@ -302,9 +338,17 @@ export async function getPmAttendancePageData(
       checkIn,
       report,
       dateBlock,
-      attendanceStatus,
+      attendanceCalculation,
       attendanceLabel,
       checkInTime: formatCheckInClockTime(checkIn?.checked_in_at ?? null),
+      checkOutTime: formatCheckOutClockTime(checkIn?.checked_out_at ?? null),
+      hoursLabel:
+        selectedDate > today && !checkIn
+          ? "—"
+          : formatHoursProgress(
+              attendanceCalculation.workedHours,
+              attendanceCalculation.requiredHours
+            ),
       absencePercentage,
       hasSubmittedReport,
       scheduleId: schedule?.id ?? null,

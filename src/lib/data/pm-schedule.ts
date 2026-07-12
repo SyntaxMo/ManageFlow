@@ -22,6 +22,10 @@ import {
   getTimelineWeekGoal,
   type InternshipTimelineWeek,
 } from "@/lib/timeline/internship-timeline";
+import {
+  getTeamWorkScheduleData,
+  type TeamWorkScheduleData,
+} from "@/lib/data/pm-team-work-schedule";
 
 const ACTIVE_PROJECT_STATUSES = [
   "planning",
@@ -61,6 +65,7 @@ export type PmSchedulePageData = {
   meetingsLoadState: PmScheduleQueryState;
   timelineLoadState: PmScheduleQueryState;
   internsLoadState: PmScheduleQueryState;
+  teamWorkSchedule: TeamWorkScheduleData;
   loadState: PmScheduleLoadState;
   errors: string[];
 };
@@ -166,12 +171,14 @@ function emptySchedulePageData(
   profile: Profile,
   extras: Partial<PmSchedulePageData> = {}
 ): PmSchedulePageData {
+  const today = getTodayInAppTimezone();
+
   return {
     profile,
     project: null,
     teamName: null,
     interns: [],
-    today: getTodayInAppTimezone(),
+    today,
     currentWeekNumber: null,
     currentWeek: null,
     currentGoal: null,
@@ -181,10 +188,16 @@ function emptySchedulePageData(
     todayMeetings: [],
     upcomingMeetings: [],
     timelinePhases: [],
-    internshipTimeline: [],
+    internshipTimeline: buildInternshipTimeline(null, [], today),
     meetingsLoadState: "loaded",
     timelineLoadState: "loaded",
     internsLoadState: "loaded",
+    teamWorkSchedule: {
+      summaries: [],
+      timetable: [],
+      loadState: "no_interns",
+      errors: [],
+    },
     loadState: "no_project",
     errors: [],
     ...extras,
@@ -198,6 +211,7 @@ async function assembleSchedulePageData(options: {
   teamId: string | null;
   interns: PmScheduleIntern[];
   internsLoadState: PmScheduleQueryState;
+  teamWorkSchedule: TeamWorkScheduleData;
   meetingUserId: string;
   includeCreatedByMeetings: boolean;
   errors?: string[];
@@ -217,12 +231,16 @@ async function assembleSchedulePageData(options: {
   const supabase = await createClient();
 
   if (!project.start_date || !project.deadline) {
+    const internshipTimeline = buildInternshipTimeline(project, [], today);
+
     return emptySchedulePageData(profile, {
       project,
       teamName,
       interns,
       today,
       internsLoadState,
+      teamWorkSchedule: options.teamWorkSchedule,
+      internshipTimeline,
       loadState: "missing_dates",
       errors,
     });
@@ -345,7 +363,7 @@ async function assembleSchedulePageData(options: {
   const internshipTimeline =
     timelineLoadState === "loaded"
       ? buildInternshipTimeline(project, timelineItems, today)
-      : [];
+      : buildInternshipTimeline(null, [], today);
 
   return {
     profile,
@@ -366,6 +384,7 @@ async function assembleSchedulePageData(options: {
     meetingsLoadState,
     timelineLoadState,
     internsLoadState,
+    teamWorkSchedule: options.teamWorkSchedule,
     loadState: "loaded",
     errors,
   };
@@ -395,20 +414,28 @@ export async function getPmSchedulePageData(
     }
   }
 
-  const { data: internRows, error: internsError } = await supabase
-    .from("profiles")
-    .select("id, full_name, job_title")
-    .eq("manager_id", managerId)
-    .eq("status", "active")
-    .order("full_name");
+  const teamWorkSchedule = await getTeamWorkScheduleData(managerId);
+  const interns = teamWorkSchedule.summaries.map((summary) => ({
+    id: summary.intern.id,
+    full_name: summary.intern.full_name,
+    job_title: summary.intern.job_title,
+  })) as PmScheduleIntern[];
 
-  const internsLoadState: PmScheduleQueryState = internsError ? "error" : "loaded";
-  if (internsError) {
-    errors.push("We could not load your assigned interns.");
-    console.error("Failed to load interns:", internsError.message);
+  const internsLoadState: PmScheduleQueryState =
+    teamWorkSchedule.loadState === "interns_error" ||
+    teamWorkSchedule.loadState === "schedules_error"
+      ? "error"
+      : "loaded";
+
+  if (teamWorkSchedule.loadState === "interns_error") {
+    errors.push(
+      teamWorkSchedule.errors[0] ?? "We could not load your assigned interns."
+    );
   }
 
-  const interns = (internRows ?? []) as PmScheduleIntern[];
+  if (teamWorkSchedule.errors.length > 0) {
+    errors.push(...teamWorkSchedule.errors);
+  }
 
   const { data: projectRows, error: projectError } = await supabase
     .from("projects")
@@ -426,6 +453,7 @@ export async function getPmSchedulePageData(
       meetingsLoadState: "loaded",
       timelineLoadState: "error",
       internsLoadState,
+      teamWorkSchedule,
       loadState: "project_error",
       errors: ["We could not load your assigned project."],
     });
@@ -437,6 +465,7 @@ export async function getPmSchedulePageData(
       teamName,
       interns,
       internsLoadState,
+      teamWorkSchedule,
       errors,
     });
   }
@@ -448,6 +477,7 @@ export async function getPmSchedulePageData(
     teamId: managerTeamId,
     interns,
     internsLoadState,
+    teamWorkSchedule,
     meetingUserId: managerId,
     includeCreatedByMeetings: true,
     errors,
@@ -563,6 +593,12 @@ export async function getInternSchedulePageData(
     teamId: internProfile.team_id,
     interns: [],
     internsLoadState: "loaded",
+    teamWorkSchedule: {
+      summaries: [],
+      timetable: [],
+      loadState: "no_interns",
+      errors: [],
+    },
     meetingUserId: internId,
     includeCreatedByMeetings: false,
     errors,

@@ -9,7 +9,8 @@ import {
   getInternAttendanceStatus,
   INTERN_ATTENDANCE_LABELS,
 } from "@/lib/attendance";
-import { getLocalDateString } from "@/lib/db/status";
+import { getLocalDateString, formatTime } from "@/lib/db/status";
+import { formatWorkedDuration } from "@/lib/attendance/duration";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -20,7 +21,6 @@ import {
   CardTitle,
 } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { formatTime } from "@/lib/db/status";
 import { cn } from "@/lib/utils";
 
 function parseTimeToMinutes(time: string) {
@@ -312,7 +312,7 @@ export function CheckInCard({
             </p>
             {checkIn.total_worked_hours != null && (
               <p className="font-medium text-ink">
-                {Number(checkIn.total_worked_hours).toFixed(2)} hrs worked
+                {formatWorkedDuration(Number(checkIn.total_worked_hours))} worked
               </p>
             )}
           </div>

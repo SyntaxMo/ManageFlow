@@ -24,6 +24,10 @@ function getStatusBadgeStyles(label: PmAttendanceMemberRow["attendanceLabel"]) {
       return "bg-red-50 text-red-700";
     case "On Leave":
       return "bg-slate-100 text-slate-600";
+    case "Scheduled":
+      return "bg-sky-50 text-sky-700";
+    case "Checked In":
+      return "bg-blue-50 text-blue-700";
     default:
       return "bg-slate-100 text-slate-600";
   }
@@ -187,7 +191,11 @@ export function AttendanceTable({
                   </div>
                 </td>
                 <td className="px-5 py-4 text-sm text-ink">
-                  {row.checkInTime ?? "—"}
+                  <div>{row.checkInTime ?? "—"}</div>
+                  {row.checkOutTime && (
+                    <div className="text-xs text-muted">Out {row.checkOutTime}</div>
+                  )}
+                  <div className="mt-1 text-xs text-muted">{row.hoursLabel}</div>
                 </td>
                 <td className="px-5 py-4">
                   <span
@@ -251,7 +259,11 @@ export function AttendanceTable({
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div>
                 <dt className="text-xs uppercase tracking-wide text-muted">Check-In</dt>
-                <dd className="mt-1 font-medium text-ink">{row.checkInTime ?? "—"}</dd>
+                <dd className="mt-1 font-medium text-ink">
+                  {row.checkInTime ?? "—"}
+                  {row.checkOutTime ? ` · Out ${row.checkOutTime}` : ""}
+                </dd>
+                <dd className="mt-1 text-xs text-muted">{row.hoursLabel}</dd>
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-wide text-muted">Report</dt>

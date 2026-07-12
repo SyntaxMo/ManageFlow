@@ -8,8 +8,10 @@ import {
 } from "@/lib/project/weeks";
 import {
   buildInternshipTimeline,
+  buildInternshipTimelinePhaseRows,
   buildTimelinePreview,
   INTERNSHIP_TIMELINE_CONTENT,
+  INTERNSHIP_TIMELINE_PHASE_GROUPS,
 } from "@/lib/timeline/internship-timeline";
 
 describe("calculateProjectWeeks", () => {
@@ -84,6 +86,47 @@ describe("buildInternshipTimeline", () => {
     expect(timeline[0]?.status).toBe("current");
     expect(timeline[4]?.phase).toBe("UI Integration & Polish");
   });
+
+  it("returns the canonical Week 0-8 content without project dates", () => {
+    const timeline = buildInternshipTimeline(null, [], "2026-07-03");
+
+    expect(timeline).toHaveLength(9);
+    expect(timeline.map((week) => week.weekNumber)).toEqual([
+      0, 1, 2, 3, 4, 5, 6, 7, 8,
+    ]);
+    expect(timeline[7]?.phase).toBe("Polish & Integration");
+    expect(timeline.every((week) => week.status === "upcoming")).toBe(true);
+    expect(timeline.every((week) => week.weekStart === "")).toBe(true);
+  });
+});
+
+describe("buildInternshipTimelinePhaseRows", () => {
+  it("groups weeks into the canonical internship phases", () => {
+    const timeline = buildInternshipTimeline(null, [], "2026-07-03");
+    const rows = buildInternshipTimelinePhaseRows(timeline, false);
+
+    expect(rows).toHaveLength(INTERNSHIP_TIMELINE_PHASE_GROUPS.length);
+    expect(rows[1]?.weekNumbers).toEqual([1, 2, 3]);
+    expect(rows[1]?.phase).toBe("Development");
+    expect(rows[5]?.weekNumbers).toEqual([7, 8]);
+    expect(rows.every((row) => row.status === null)).toBe(true);
+  });
+
+  it("marks the current phase when project dates exist", () => {
+    const timeline = buildInternshipTimeline(
+      {
+        start_date: "2026-07-01",
+        deadline: "2026-09-01",
+      },
+      [],
+      "2026-07-22"
+    );
+    const rows = buildInternshipTimelinePhaseRows(timeline, true);
+
+    expect(rows.find((row) => row.status === "current")?.phase).toBe(
+      "Development"
+    );
+  });
 });
 
 describe("buildTimelinePreview", () => {
@@ -96,9 +139,18 @@ describe("buildTimelinePreview", () => {
       [],
       "2026-07-22"
     );
-    const preview = buildTimelinePreview(timeline, 6);
+    const preview = buildTimelinePreview(timeline, 6, true);
 
     expect(preview.weeks.some((week) => week.state === "current")).toBe(true);
     expect(preview.moreWeeks).toBeGreaterThanOrEqual(0);
+  });
+
+  it("shows a neutral preview when project dates are missing", () => {
+    const timeline = buildInternshipTimeline(null, [], "2026-07-22");
+    const preview = buildTimelinePreview(timeline, 6, false);
+
+    expect(preview.weeks).toHaveLength(6);
+    expect(preview.weeks.every((week) => week.state === "upcoming")).toBe(true);
+    expect(preview.weeks[0]?.weekNumber).toBe(0);
   });
 });

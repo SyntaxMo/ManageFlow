@@ -12,6 +12,10 @@ import {
   sanitizeUploadFilename,
 } from "@/lib/reports/storage";
 import { resolveInternDailyReportContext } from "@/lib/reports/intern-context";
+import { getLocalDateString } from "@/lib/db/status";
+import { getScheduleBlockForDate } from "@/lib/attendance/calculate";
+import { finalizeCheckInAttendanceStatus } from "@/lib/attendance/finalize";
+import { getInternWorkSchedule } from "@/lib/data/intern-work-schedule";
 
 export type SubmitDailyReportResult =
   | { success: true; reportId: string }
@@ -196,7 +200,24 @@ export async function submitDailyReportDocument(
     details: { report_date: context.reportDate, file_name: fileName },
   });
 
+  const workSchedule = await getInternWorkSchedule(user.id);
+  const todayBlock = getScheduleBlockForDate(
+    context.reportDate,
+    workSchedule.blocks
+  );
+
+  if (todayBlock) {
+    await finalizeCheckInAttendanceStatus({
+      supabase,
+      userId: user.id,
+      checkInDate: context.reportDate,
+      dateBlock: todayBlock,
+      hasSubmittedReport: true,
+    });
+  }
+
   revalidatePath("/dashboard/reports");
+  revalidatePath("/dashboard/attendance");
   revalidatePath("/dashboard");
   return { success: true, reportId };
 }

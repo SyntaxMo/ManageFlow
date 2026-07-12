@@ -13,6 +13,7 @@ import { UpcomingMeetingsPanel } from "@/components/dashboard/manager/pm-schedul
 import { FullInternshipTimeline } from "@/components/dashboard/manager/pm-schedule/FullInternshipTimeline";
 import { AddMeetingModal } from "@/components/dashboard/manager/pm-schedule/AddMeetingModal";
 import { MeetingDetailModal } from "@/components/dashboard/manager/pm-schedule/MeetingDetailModal";
+import { TeamWorkScheduleSection } from "@/components/dashboard/manager/pm-schedule/team-work-schedule/TeamWorkScheduleSection";
 
 interface ScheduleWorkspaceViewProps {
   data: PmSchedulePageData;
@@ -63,14 +64,11 @@ export function ScheduleWorkspaceView({
     if (data.loadState === "project_error") {
       return data.errors[0] ?? "We could not load your assigned project.";
     }
-    if (data.loadState === "no_project") {
-      return "No active project is assigned to you.";
-    }
-    if (data.loadState === "missing_dates") {
-      return "Your active project is missing start or deadline dates.";
-    }
     return null;
   }, [data.loadState, data.errors]);
+
+  const hasProjectContext =
+    data.loadState === "loaded" || data.loadState === "missing_dates";
 
   function handleMeetingSuccess(message: string) {
     setToast(message);
@@ -124,7 +122,16 @@ export function ScheduleWorkspaceView({
         goal={data.currentGoal}
         currentWeek={data.currentWeek}
         daysLeft={data.daysLeft}
+        hasProject={hasProjectContext}
       />
+
+      {canManageMeetings && (
+        <TeamWorkScheduleSection
+          teamWorkSchedule={data.teamWorkSchedule}
+          onSuccess={handleMeetingSuccess}
+          onError={setErrorToast}
+        />
+      )}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <WeekScheduleCard

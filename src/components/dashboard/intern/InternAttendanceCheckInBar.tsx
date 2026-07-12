@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Clock3 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { CheckIn, WorkSchedule, WorkScheduleBlock } from "@/lib/db/types";
-import { getInternAttendanceStatus } from "@/lib/attendance";
+import type { AttendanceCalculationResult, AttendanceDisplayLabel } from "@/lib/attendance/calculate";
+import { formatHoursProgress } from "@/lib/attendance/calculate";
+import { internCheckOut } from "@/lib/attendance/intern-actions";
+import type { InternDailyReportVerification } from "@/lib/attendance/intern-report";
 import { formatTime, getLocalDateString } from "@/lib/db/status";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -20,13 +24,6 @@ function isLate(scheduledStart: string, now = new Date()) {
   return nowMinutes > parseTimeToMinutes(scheduledStart);
 }
 
-function calculateWorkedHours(checkedInAt: string, checkedOutAt: string) {
-  const start = new Date(checkedInAt).getTime();
-  const end = new Date(checkedOutAt).getTime();
-  const hours = (end - start) / (1000 * 60 * 60);
-  return Math.round(hours * 100) / 100;
-}
-
 interface InternAttendanceCheckInBarProps {
   todayLabel: string;
   userId: string;
@@ -34,8 +31,9 @@ interface InternAttendanceCheckInBarProps {
   schedule: WorkSchedule | null;
   todayBlock: WorkScheduleBlock | null;
   checkIn: CheckIn | null;
-  hasSubmittedReport: boolean;
-  todayStatusLabel: "Present" | "Late" | "Absent" | "Not checked in";
+  todayReportVerification: InternDailyReportVerification;
+  todayCalculation: AttendanceCalculationResult;
+  todayDisplayLabel: AttendanceDisplayLabel;
   canAct: boolean;
 }
 
@@ -46,48 +44,86 @@ export function InternAttendanceCheckInBar({
   schedule,
   todayBlock,
   checkIn: initialCheckIn,
-  hasSubmittedReport,
-  todayStatusLabel,
+  todayReportVerification,
+  todayCalculation,
+  todayDisplayLabel,
   canAct,
 }: InternAttendanceCheckInBarProps) {
   const router = useRouter();
   const [checkIn, setCheckIn] = useState(initialCheckIn);
-  const [error, setError] = useState<string | null>(null);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const today = getLocalDateString();
+
+  const hasSubmittedReport = todayReportVerification.state === "submitted";
+  const reportVerificationFailed = todayReportVerification.state === "error";
 
   useEffect(() => {
     setCheckIn(initialCheckIn);
   }, [initialCheckIn]);
 
-  const status = getInternAttendanceStatus({
-    hasManager,
-    hasSchedule: Boolean(schedule),
-    scheduledToday: Boolean(todayBlock),
-    checkIn,
-    todayBlock,
-    hasSubmittedReport,
-  });
+  useEffect(() => {
+    if (!errorToast) return;
+    const timer = window.setTimeout(() => setErrorToast(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [errorToast]);
 
-  const checkedInAt = checkIn?.checked_in_at
-    ? formatTime(checkIn.checked_in_at)
-    : null;
+  const isCheckedIn = Boolean(checkIn?.checked_in_at);
+  const isCheckedOut = Boolean(checkIn?.checked_out_at);
+
+  const bannerTitle = !isCheckedIn
+    ? "Not checked in yet"
+    : isCheckedOut
+      ? `Checked out at ${formatTime(checkIn?.checked_out_at ?? null)}`
+      : `Checked in at ${formatTime(checkIn?.checked_in_at ?? null)}`;
+
+  const completionMessage = (() => {
+    if (reportVerificationFailed) {
+      return null;
+    }
+    if (todayCalculation.finalized && todayDisplayLabel === "Present") {
+      return "Attendance completed for today.";
+    }
+    if (todayCalculation.finalized && todayDisplayLabel === "Late") {
+      return "Attendance completed for today.";
+    }
+    if (todayCalculation.finalized && todayDisplayLabel === "Absent") {
+      return "Attendance requirements were not fully met for today.";
+    }
+    if (isCheckedIn && !isCheckedOut && !hasSubmittedReport) {
+      return "Submit today's report before checking out.";
+    }
+    if (isCheckedIn && !isCheckedOut && hasSubmittedReport) {
+      return "Your report is submitted. You may now check out.";
+    }
+    return null;
+  })();
 
   const canCheckIn =
     canAct &&
     hasManager &&
     Boolean(schedule?.id && todayBlock) &&
-    !checkIn?.checked_in_at;
+    !isCheckedIn;
 
   const canCheckOut =
     canAct &&
     hasManager &&
-    Boolean(checkIn) &&
-    (status === "checked_in" || status === "late");
+    isCheckedIn &&
+    !isCheckedOut &&
+    hasSubmittedReport &&
+    !reportVerificationFailed;
+
+  const showBlockedCheckout =
+    canAct &&
+    hasManager &&
+    isCheckedIn &&
+    !isCheckedOut &&
+    !hasSubmittedReport &&
+    !reportVerificationFailed;
 
   async function handleCheckIn() {
     if (!todayBlock || !schedule?.id || !hasManager) return;
-    setError(null);
+    setErrorToast(null);
     setIsLoading(true);
 
     try {
@@ -115,63 +151,43 @@ export function InternAttendanceCheckInBar({
       router.refresh();
     } catch (err) {
       console.error("Check-in failed:", err);
-      setError(err instanceof Error ? err.message : "Check-in failed.");
+      setErrorToast("Check-in failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
   }
 
   async function handleCheckOut() {
-    if (!checkIn) return;
-    setError(null);
+    if (!checkIn || !canCheckOut) return;
+    setErrorToast(null);
     setIsLoading(true);
 
     try {
-      const supabase = createClient();
-      const now = new Date();
-      const totalHours = checkIn.checked_in_at
-        ? calculateWorkedHours(checkIn.checked_in_at, now.toISOString())
-        : null;
+      const result = await internCheckOut();
+      if (!result.success) {
+        setErrorToast(result.error);
+        return;
+      }
 
-      const { data, error: updateError } = await supabase
-        .from("check_ins")
-        .update({
-          checked_out_at: now.toISOString(),
-          status: "completed",
-          total_worked_hours: totalHours,
-        })
-        .eq("id", checkIn.id)
-        .select("*")
-        .single();
-
-      if (updateError) throw new Error(updateError.message);
-      setCheckIn(data as CheckIn);
+      setCheckIn(result.checkIn);
       router.refresh();
     } catch (err) {
       console.error("Check-out failed:", err);
-      setError(err instanceof Error ? err.message : "Check-out failed.");
+      setErrorToast("Check-out failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
   }
 
-  const displayStatus =
-    status === "completed"
-      ? "Present"
-      : status === "late"
-        ? "Late"
-        : status === "absent"
-          ? "Absent"
-          : checkIn?.checked_in_at
-            ? todayStatusLabel === "Late"
-              ? "Late"
-              : "Present"
-            : todayStatusLabel;
-
-  const dayCompleteHint =
-    checkIn?.checked_out_at && !hasSubmittedReport
-      ? "Submit today’s daily report to complete attendance."
-      : null;
+  const badgeLabel = isCheckedOut
+    ? todayDisplayLabel
+    : isCheckedIn
+      ? todayDisplayLabel === "Checked In"
+        ? todayCalculation.isLate
+          ? "Late"
+          : "Checked In"
+        : todayDisplayLabel
+      : todayDisplayLabel;
 
   return (
     <section className="mb-5 rounded-[12px] bg-deep px-5 py-6 text-white sm:px-6">
@@ -180,38 +196,55 @@ export function InternAttendanceCheckInBar({
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/65">
             Today — {todayLabel}
           </p>
-          <p className="mt-3 text-2xl font-bold sm:text-3xl">
-            {checkedInAt
-              ? checkIn?.checked_out_at
-                ? `Checked out · in at ${checkedInAt}`
-                : `Checked in at ${checkedInAt}`
-              : "Not checked in yet"}
-          </p>
+          <p className="mt-3 text-2xl font-bold sm:text-3xl">{bannerTitle}</p>
           <div className="mt-3">
             <Badge
               variant={
-                displayStatus === "Late"
+                badgeLabel === "Late"
                   ? "warning"
-                  : displayStatus === "Present"
+                  : badgeLabel === "Present"
                     ? "success"
-                    : "muted"
+                    : badgeLabel === "Absent"
+                      ? "danger"
+                      : "muted"
               }
               className="bg-white/15 text-white"
             >
               <Clock3 className="mr-1 h-3.5 w-3.5" />
-              {status === "completed"
-                ? "Completed"
-                : displayStatus === "Present"
-                  ? "On Time"
-                  : displayStatus}
+              {badgeLabel}
             </Badge>
-            {dayCompleteHint && (
-              <p className="mt-2 text-xs text-white/75">{dayCompleteHint}</p>
+            {todayCalculation.requiredHours != null && (
+              <p className="mt-2 text-xs text-white/75">
+                Worked time:{" "}
+                {formatHoursProgress(
+                  todayCalculation.workedHours,
+                  todayCalculation.requiredHours
+                )}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-white/75">
+              Report: {hasSubmittedReport ? "Submitted" : "Not submitted"}
+            </p>
+            {todayCalculation.requirements.length > 0 && !isCheckedOut && (
+              <ul className="mt-2 space-y-1 text-xs text-white/75">
+                {todayCalculation.requirements.map((requirement) => (
+                  <li key={requirement}>• {requirement}</li>
+                ))}
+              </ul>
+            )}
+            {completionMessage && (
+              <p className="mt-2 text-xs text-white/75">{completionMessage}</p>
+            )}
+            {reportVerificationFailed && (
+              <p className="mt-2 text-xs text-red-100">
+                We could not verify your daily report status. Please refresh the
+                page.
+              </p>
             )}
           </div>
         </div>
 
-        <div className="shrink-0">
+        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
           {canCheckIn && (
             <Button
               onClick={handleCheckIn}
@@ -221,6 +254,7 @@ export function InternAttendanceCheckInBar({
               Check in
             </Button>
           )}
+
           {canCheckOut && (
             <Button
               onClick={handleCheckOut}
@@ -231,25 +265,53 @@ export function InternAttendanceCheckInBar({
               Check out
             </Button>
           )}
-          {!canCheckIn && !canCheckOut && !checkIn?.checked_in_at && (
-            <p className="max-w-[220px] text-right text-xs text-white/70">
-              {!hasManager
-                ? "Assign a project manager before checking in."
-                : !schedule
-                  ? "Your work schedule is not set up yet."
-                  : !todayBlock
-                    ? "You are not scheduled today."
-                    : !canAct
-                      ? "Check-in is unavailable for this account status."
-                      : null}
-            </p>
+
+          {showBlockedCheckout && (
+            <>
+              <Button
+                type="button"
+                disabled
+                className="w-full cursor-not-allowed bg-white/10 text-white/70 sm:w-auto"
+              >
+                Submit report first
+              </Button>
+              <p className="max-w-[260px] text-xs text-white/75 sm:text-right">
+                You must submit today&apos;s Daily Report before checking out.
+              </p>
+              <Link
+                href="/dashboard/reports"
+                className="inline-flex h-10 items-center justify-center rounded-[10px] border border-white/30 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20 sm:w-auto"
+              >
+                Go to Daily Reports
+              </Link>
+            </>
           )}
+
+          {!canCheckIn &&
+            !canCheckOut &&
+            !showBlockedCheckout &&
+            !isCheckedIn && (
+              <p className="max-w-[220px] text-right text-xs text-white/70">
+                {!hasManager
+                  ? "Assign a project manager before checking in."
+                  : !schedule
+                    ? "Your work schedule is not set up yet."
+                    : !todayBlock
+                      ? "You are not scheduled today."
+                      : !canAct
+                        ? "Check-in is unavailable for this account status."
+                        : null}
+              </p>
+            )}
         </div>
       </div>
 
-      {error && (
-        <p className="mt-4 rounded-[10px] border border-red-200/40 bg-red-500/20 px-3 py-2 text-xs text-white">
-          {error}
+      {errorToast && (
+        <p
+          role="alert"
+          className="mt-4 rounded-[10px] border border-red-200/40 bg-red-500/20 px-3 py-2 text-xs text-white"
+        >
+          {errorToast}
         </p>
       )}
     </section>

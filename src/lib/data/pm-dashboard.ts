@@ -15,6 +15,7 @@ import {
   buildInternshipTimeline,
   buildTimelinePreview,
   getCurrentTimelineWeek,
+  hasInternshipProjectDates,
 } from "@/lib/timeline/internship-timeline";
 import { isTaskApproved } from "@/lib/task-sheet/task-sheet";
 
@@ -78,7 +79,8 @@ export function buildCurrentGoal(
   today: string
 ): PmCurrentGoal | null {
   const timeline = buildInternshipTimeline(project, milestones, today);
-  const currentWeek = getCurrentTimelineWeek(timeline);
+  const datesConfigured = hasInternshipProjectDates(project);
+  const currentWeek = getCurrentTimelineWeek(timeline, datesConfigured);
   if (!currentWeek) return null;
 
   return {
@@ -97,7 +99,8 @@ export function buildTimelineWeeks(
   today: string
 ): { weeks: PmTimelineWeek[]; moreWeeks: number } {
   const timeline = buildInternshipTimeline(project, milestones, today);
-  const preview = buildTimelinePreview(timeline);
+  const datesConfigured = hasInternshipProjectDates(project);
+  const preview = buildTimelinePreview(timeline, 6, datesConfigured);
   return {
     weeks: preview.weeks.map((week) => ({
       weekNumber: week.weekNumber,

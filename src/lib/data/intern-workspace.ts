@@ -22,6 +22,7 @@ import {
   buildInternshipTimeline,
   buildTimelinePreview,
   getCurrentTimelineWeek,
+  hasInternshipProjectDates,
 } from "@/lib/timeline/internship-timeline";
 import { isTaskApproved, isTaskCompleted, sortTasksForDisplay } from "@/lib/task-sheet/task-sheet";
 import type {
@@ -83,9 +84,13 @@ export async function getInternDashboardPageData(
     : [];
 
   const internshipTimeline = buildInternshipTimeline(activeProject, milestones, today);
+  const datesConfigured = hasInternshipProjectDates(activeProject);
   const { weeks: timelineWeeks, moreWeeks: moreTimelineWeeks } =
-    buildTimelinePreview(internshipTimeline);
-  const currentTimelineWeek = getCurrentTimelineWeek(internshipTimeline);
+    buildTimelinePreview(internshipTimeline, 6, datesConfigured);
+  const currentTimelineWeek = getCurrentTimelineWeek(
+    internshipTimeline,
+    datesConfigured
+  );
 
   const currentGoal: PmCurrentGoal | null = currentTimelineWeek
     ? {

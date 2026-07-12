@@ -6,6 +6,7 @@ interface ScheduleGoalBannerProps {
   goal: string | null;
   currentWeek: ProjectWeek | null;
   daysLeft: number | null;
+  hasProject?: boolean;
 }
 
 export function ScheduleGoalBanner({
@@ -13,6 +14,7 @@ export function ScheduleGoalBanner({
   goal,
   currentWeek,
   daysLeft,
+  hasProject = true,
 }: ScheduleGoalBannerProps) {
   return (
     <section className="mb-5 rounded-[12px] bg-deep px-5 py-5 text-white sm:px-6">
@@ -37,7 +39,9 @@ export function ScheduleGoalBanner({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/65">
                   Current week goal
                 </p>
-                <p className="text-lg font-semibold sm:text-xl">No current goal</p>
+                <p className="text-lg font-semibold sm:text-xl">
+                  {hasProject ? "No current goal" : "No project goal available"}
+                </p>
               </>
             )}
           </div>

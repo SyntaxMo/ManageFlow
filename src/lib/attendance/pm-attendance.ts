@@ -1,31 +1,36 @@
 import type { CheckIn, WorkScheduleBlock } from "@/lib/db/types";
 import { APP_TIMEZONE } from "@/config/app";
 import {
+  calculateAbsencePercentage,
+  calculateAbsenceStats,
+  calculateAttendanceSummary,
+  calculateFinalAttendanceStatus,
+  type AttendanceCalculationResult,
+  type AttendanceDisplayLabel,
+  formatHoursProgress,
+  formatWorkedDuration,
+  getDayOfWeekFromIsoDate,
+  getScheduleBlockForDate,
+  mapCalculationToDisplayLabel,
+} from "@/lib/attendance/calculate";
+import {
   getPmInternAttendanceStatus,
   isPastScheduledStart,
   type PmInternAttendanceStatus,
 } from "@/lib/attendance";
-import { addDaysToIsoDate } from "@/lib/weekly-summary/weeks";
 
-export type AttendanceDisplayLabel =
-  | "Present"
-  | "Late"
-  | "Absent"
-  | "On Leave"
-  | "Not Checked In";
-
-export function getDayOfWeekFromIsoDate(isoDate: string) {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0)).getUTCDay();
-}
-
-export function getScheduleBlockForDate(
-  isoDate: string,
-  blocks: WorkScheduleBlock[]
-): WorkScheduleBlock | null {
-  const dayOfWeek = getDayOfWeekFromIsoDate(isoDate);
-  return blocks.find((block) => block.day_of_week === dayOfWeek) ?? null;
-}
+export type { AttendanceDisplayLabel, AttendanceCalculationResult };
+export {
+  calculateAbsencePercentage,
+  calculateAbsenceStats,
+  calculateAttendanceSummary,
+  calculateFinalAttendanceStatus,
+  formatHoursProgress,
+  formatWorkedDuration,
+  getDayOfWeekFromIsoDate,
+  getScheduleBlockForDate,
+  mapCalculationToDisplayLabel,
+};
 
 export function getPmInternAttendanceStatusForDate(input: {
   selectedDate: string;
@@ -35,42 +40,35 @@ export function getPmInternAttendanceStatusForDate(input: {
   hasSubmittedReport?: boolean;
   referenceNow?: Date;
 }): PmInternAttendanceStatus {
-  const {
-    selectedDate,
-    today,
-    dateBlock,
-    checkIn,
-    hasSubmittedReport = false,
-  } = input;
-  const referenceNow = input.referenceNow ?? new Date();
-
-  if (!dateBlock) {
-    return "not_scheduled";
-  }
-
-  // Past scheduled days require both check-in and a submitted report.
-  if (selectedDate < today) {
-    const checkedIn =
-      Boolean(checkIn?.checked_in_at) && checkIn?.status !== "absent";
-    if (!checkedIn || !hasSubmittedReport) {
-      return "absent";
-    }
-    if (checkIn?.status === "late") return "late";
-    if (checkIn?.status === "completed") return "completed";
-    return "checked_in";
-  }
-
-  if (selectedDate > today) {
-    return "not_checked_in";
-  }
-
-  return getPmInternAttendanceStatus({
-    scheduledToday: true,
-    todayBlock: dateBlock,
-    checkIn,
-    hasSubmittedReport,
-    now: referenceNow,
+  const result = calculateFinalAttendanceStatus({
+    date: input.selectedDate,
+    today: input.today,
+    dateBlock: input.dateBlock,
+    checkIn: input.checkIn,
+    hasSubmittedReport: input.hasSubmittedReport ?? false,
+    referenceNow: input.referenceNow,
   });
+
+  switch (result.displayLabel) {
+    case "Present":
+      return "completed";
+    case "Late":
+      return "late";
+    case "Absent":
+      return "absent";
+    case "On Leave":
+      return "not_scheduled";
+    case "Not Checked In":
+    case "Incomplete":
+    default:
+      return getPmInternAttendanceStatus({
+        scheduledToday: Boolean(input.dateBlock),
+        todayBlock: input.dateBlock,
+        checkIn: input.checkIn,
+        hasSubmittedReport: input.hasSubmittedReport,
+        now: input.referenceNow,
+      });
+  }
 }
 
 export function mapPmAttendanceDisplayLabel(
@@ -97,12 +95,26 @@ export function formatCheckInClockTime(
 ) {
   if (!checkedInAt) return null;
 
-  return new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit",
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
     minute: "2-digit",
-    hour12: false,
+    hour12: true,
     timeZone,
   }).format(new Date(checkedInAt));
+}
+
+export function formatCheckOutClockTime(
+  checkedOutAt: string | null,
+  timeZone = APP_TIMEZONE
+) {
+  if (!checkedOutAt) return null;
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone,
+  }).format(new Date(checkedOutAt));
 }
 
 export function getAbsenceBarTone(percentage: number | null) {
@@ -137,81 +149,6 @@ export function getAbsenceBarTone(percentage: number | null) {
   };
 }
 
-export function calculateAbsenceStats(input: {
-  periodStart: string;
-  selectedDate: string;
-  today: string;
-  blocks: WorkScheduleBlock[];
-  checkInsByDate: Map<string, CheckIn>;
-  reportsByDate?: Map<string, boolean>;
-  referenceNow?: Date;
-}): { percentage: number; absentDays: number } | null {
-  const {
-    periodStart,
-    selectedDate,
-    today,
-    blocks,
-    checkInsByDate,
-    reportsByDate,
-  } = input;
-
-  if (blocks.length === 0) {
-    return null;
-  }
-
-  const endDate = selectedDate <= today ? selectedDate : today;
-  if (periodStart > endDate) {
-    return { percentage: 0, absentDays: 0 };
-  }
-
-  let totalScheduled = 0;
-  let absentDays = 0;
-  let current = periodStart;
-
-  while (current <= endDate) {
-    const block = getScheduleBlockForDate(current, blocks);
-
-    if (block) {
-      totalScheduled += 1;
-      const status = getPmInternAttendanceStatusForDate({
-        selectedDate: current,
-        today,
-        dateBlock: block,
-        checkIn: checkInsByDate.get(current) ?? null,
-        hasSubmittedReport: reportsByDate?.get(current) === true,
-        referenceNow: input.referenceNow,
-      });
-
-      if (status === "absent") {
-        absentDays += 1;
-      }
-    }
-
-    current = addDaysToIsoDate(current, 1);
-  }
-
-  if (totalScheduled === 0) {
-    return null;
-  }
-
-  return {
-    percentage: Math.round((absentDays / totalScheduled) * 100),
-    absentDays,
-  };
-}
-
-export function calculateAbsencePercentage(input: {
-  periodStart: string;
-  selectedDate: string;
-  today: string;
-  blocks: WorkScheduleBlock[];
-  checkInsByDate: Map<string, CheckIn>;
-  reportsByDate?: Map<string, boolean>;
-  referenceNow?: Date;
-}): number | null {
-  return calculateAbsenceStats(input)?.percentage ?? null;
-}
-
 export function isReportSubmitted(reviewStatus: string | null | undefined) {
   return (
     reviewStatus === "submitted" ||
@@ -226,12 +163,7 @@ export function buildAttendanceSummaryCounts(
     hasSubmittedReport: boolean | null;
   }>
 ) {
-  return {
-    present: rows.filter((row) => row.attendanceLabel === "Present").length,
-    late: rows.filter((row) => row.attendanceLabel === "Late").length,
-    absent: rows.filter((row) => row.attendanceLabel === "Absent").length,
-    reports: rows.filter((row) => row.hasSubmittedReport === true).length,
-  };
+  return calculateAttendanceSummary(rows);
 }
 
 export const CHECK_IN_STATUS_OPTIONS = [
@@ -242,3 +174,5 @@ export const CHECK_IN_STATUS_OPTIONS = [
   { value: "absent", label: "Absent" },
   { value: "missed_checkout", label: "Missed checkout" },
 ] as const;
+
+export { isPastScheduledStart };

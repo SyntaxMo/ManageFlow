@@ -1,6 +1,7 @@
 import { CalendarCheck } from "lucide-react";
 import type { PmMemberAttendanceStat } from "@/lib/data/dashboard";
 import { PM_ATTENDANCE_LABELS } from "@/lib/attendance";
+import { formatWorkedDuration } from "@/lib/attendance/duration";
 import { Badge } from "@/components/ui/Badge";
 import {
   Card,
@@ -97,7 +98,7 @@ export function TeamAttendanceTable({
                   </DataTableCell>
                   <DataTableCell>
                     {stat.checkIn?.total_worked_hours != null
-                      ? `${Number(stat.checkIn.total_worked_hours).toFixed(2)} hrs`
+                      ? formatWorkedDuration(Number(stat.checkIn.total_worked_hours))
                       : "—"}
                   </DataTableCell>
                   <DataTableCell>

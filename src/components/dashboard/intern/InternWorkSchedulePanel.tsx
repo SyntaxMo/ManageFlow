@@ -1,7 +1,8 @@
 import { Clock3 } from "lucide-react";
 import type { WorkSchedule, WorkScheduleBlock } from "@/lib/db/types";
 import { DAY_LABELS } from "@/lib/db/types";
-import { formatLabel, formatTime } from "@/lib/db/status";
+import { formatLabel } from "@/lib/db/status";
+import { formatDbTimeRangeTo12Hour } from "@/lib/work-schedule/time";
 import { Badge } from "@/components/ui/Badge";
 import { getLocalDayOfWeek } from "@/lib/db/status";
 
@@ -74,10 +75,15 @@ export function InternWorkSchedulePanel({
                     ) : null}
                   </span>
                   <span className="text-muted">
-                    {formatTime(block.start_time)} – {formatTime(block.end_time)}
+                    {formatDbTimeRangeTo12Hour(block.start_time, block.end_time)}
                     <span className="ml-2 text-xs">
                       ({Number(block.calculated_hours).toFixed(1)} hrs)
                     </span>
+                    {block.work_mode ? (
+                      <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                        {block.work_mode}
+                      </span>
+                    ) : null}
                   </span>
                 </li>
               );

@@ -65,6 +65,7 @@ export type InternTrainingDetails = {
   is_university_requirement: boolean;
   university_id: string | null;
   university_name_other: string | null;
+  is_employee?: boolean;
   universities?: { name: string } | null;
 };
 
@@ -73,6 +74,8 @@ export type WorkSchedule = {
   user_id: string;
   total_weekly_hours: number;
   status: string;
+  approved_by?: string | null;
+  approved_at?: string | null;
 };
 
 export type WorkScheduleBlock = {
@@ -82,6 +85,7 @@ export type WorkScheduleBlock = {
   start_time: string;
   end_time: string;
   calculated_hours: number;
+  work_mode?: string | null;
 };
 
 export type CheckIn = {

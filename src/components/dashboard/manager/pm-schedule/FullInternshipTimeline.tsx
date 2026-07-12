@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import type { InternshipTimelineWeek } from "@/lib/timeline/internship-timeline";
-import { formatProjectFooterDate, formatWeekRangeLabel } from "@/lib/schedule/schedule";
+import {
+  buildInternshipTimelinePhaseRows,
+  type InternshipTimelinePhaseRow,
+  type InternshipTimelineWeek,
+} from "@/lib/timeline/internship-timeline";
+import { formatProjectFooterDate } from "@/lib/schedule/schedule";
 import { cn } from "@/lib/utils";
 
 interface FullInternshipTimelineProps {
@@ -12,71 +16,169 @@ interface FullInternshipTimelineProps {
   deadline: string | null;
 }
 
-function getStatusLabel(status: InternshipTimelineWeek["status"]) {
-  switch (status) {
-    case "completed":
-      return "Completed";
-    case "current":
-      return "Current";
-    default:
-      return "Upcoming";
+function getPhaseProgressPercent(row: InternshipTimelinePhaseRow) {
+  if (!row.status || row.status === "upcoming") {
+    return 0;
   }
+
+  if (row.status === "completed") {
+    return 100;
+  }
+
+  const completedCount = row.weeks.filter((week) => week.status === "completed").length;
+  return Math.min(
+    100,
+    Math.max(35, ((completedCount + 0.5) / row.weeks.length) * 100)
+  );
 }
 
-function getStatusBadgeClass(status: InternshipTimelineWeek["status"]) {
-  switch (status) {
-    case "completed":
-      return "bg-slate-100 text-slate-600";
-    case "current":
-      return "bg-primary/10 text-primary";
-    default:
-      return "bg-background text-muted";
+function getWeekChipClassName(
+  week: InternshipTimelineWeek,
+  datesConfigured: boolean
+) {
+  if (!datesConfigured) {
+    return "border border-border bg-white text-muted";
   }
+
+  if (week.status === "completed") {
+    return "bg-[var(--muted-blue)] text-white";
+  }
+
+  if (week.status === "current") {
+    return "bg-deep text-white";
+  }
+
+  return "border border-border bg-white text-muted";
 }
 
-function getProgressPercent(status: InternshipTimelineWeek["status"]) {
-  switch (status) {
-    case "completed":
-      return 100;
-    case "current":
-      return 55;
-    default:
-      return 0;
-  }
-}
-
-function WeekDetailRows({ week }: { week: InternshipTimelineWeek }) {
+function WeekDetailBlock({ week }: { week: InternshipTimelineWeek }) {
   return (
-    <dl className="grid gap-3 text-sm">
-      <div>
-        <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-          Phase
-        </dt>
-        <dd className="mt-1 text-ink">{week.phase}</dd>
-      </div>
-      {week.mainTasks ? (
+    <article className="rounded-[10px] border border-border bg-background/40 p-4">
+      <p className="text-sm font-semibold text-ink">Week {week.weekNumber}</p>
+      <dl className="mt-3 grid gap-3 text-sm">
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+            Phase
+          </dt>
+          <dd className="mt-1 text-ink">{week.phase}</dd>
+        </div>
         <div>
           <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
             Main Tasks
           </dt>
-          <dd className="mt-1 text-ink">{week.mainTasks}</dd>
+          <dd className="mt-1 text-ink">
+            {week.mainTasks?.trim() || "No specific tasks listed."}
+          </dd>
         </div>
-      ) : null}
-      <div>
-        <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-          Dependencies
-        </dt>
-        <dd className="mt-1 text-ink">{week.dependencies || "None"}</dd>
-      </div>
-      {week.expectedDeliverables ? (
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+            Dependencies from Other Teams
+          </dt>
+          <dd className="mt-1 text-ink">{week.dependencies || "None"}</dd>
+        </div>
         <div>
           <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
             Expected Deliverables
           </dt>
-          <dd className="mt-1 text-ink">{week.expectedDeliverables}</dd>
+          <dd className="mt-1 text-ink">
+            {week.expectedDeliverables?.trim() || "None listed."}
+          </dd>
         </div>
-      ) : null}
-    </dl>
+      </dl>
+    </article>
+  );
+}
+
+function PhaseTimelineRow({
+  row,
+  datesConfigured,
+  expanded,
+  onToggle,
+}: {
+  row: InternshipTimelinePhaseRow;
+  datesConfigured: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const progressPercent = getPhaseProgressPercent(row);
+
+  return (
+    <div className="border-b border-border last:border-b-0">
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 px-1 py-4 text-left sm:gap-4"
+        onClick={onToggle}
+        aria-expanded={expanded}
+      >
+        <div className="flex shrink-0 items-center gap-1.5">
+          {row.weekNumbers.map((weekNumber) => {
+            const week =
+              row.weeks.find((item) => item.weekNumber === weekNumber) ?? null;
+            if (!week) return null;
+
+            return (
+              <span
+                key={weekNumber}
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-[8px] text-xs font-semibold sm:h-9 sm:w-9",
+                  getWeekChipClassName(week, datesConfigured)
+                )}
+              >
+                {weekNumber}
+              </span>
+            );
+          })}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          {row.status === "completed" && datesConfigured ? (
+            <div className="h-2 rounded-full bg-[var(--muted-blue)]" />
+          ) : row.status === "current" && datesConfigured ? (
+            <div className="h-2 rounded-full border-2 border-primary/25 bg-white p-px">
+              <div
+                className="h-full rounded-full bg-[var(--muted-blue)]"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          ) : (
+            <div className="h-px rounded-full bg-border" />
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center justify-end gap-2 sm:min-w-[220px]">
+          <span
+            className={cn(
+              "text-right text-sm font-medium",
+              datesConfigured && row.status === "completed" && "text-[var(--muted-blue)]",
+              datesConfigured && row.status === "current" && "text-deep",
+              (!datesConfigured || row.status === "upcoming") && "text-muted"
+            )}
+          >
+            {row.phase}
+          </span>
+          {datesConfigured && row.status === "current" && (
+            <span className="rounded-full bg-deep px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+              Now
+            </span>
+          )}
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted transition-transform",
+              expanded && "rotate-180"
+            )}
+            aria-hidden="true"
+          />
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="space-y-3 px-1 pb-4">
+          {row.weeks.map((week) => (
+            <WeekDetailBlock key={week.weekNumber} week={week} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -85,8 +187,19 @@ export function FullInternshipTimeline({
   startDate,
   deadline,
 }: FullInternshipTimelineProps) {
-  const [expandedWeek, setExpandedWeek] = useState<number | null>(
-    weeks.find((week) => week.status === "current")?.weekNumber ?? null
+  const datesConfigured = Boolean(startDate);
+  const phaseRows = useMemo(
+    () => buildInternshipTimelinePhaseRows(weeks, datesConfigured),
+    [weeks, datesConfigured]
+  );
+
+  const defaultExpandedId = useMemo(() => {
+    if (!datesConfigured) return null;
+    return phaseRows.find((row) => row.status === "current")?.id ?? null;
+  }, [datesConfigured, phaseRows]);
+
+  const [expandedPhaseId, setExpandedPhaseId] = useState<string | null>(
+    defaultExpandedId
   );
 
   return (
@@ -95,146 +208,31 @@ export function FullInternshipTimeline({
         Full Internship Timeline
       </h2>
 
-      {weeks.length === 0 ? (
-        <div className="rounded-[10px] border border-dashed border-border bg-background px-4 py-10 text-center">
-          <p className="text-sm font-medium text-ink">No timeline items yet</p>
-          <p className="mt-1 text-xs text-muted">
-            Project milestones will appear here once your active project has a start date.
-          </p>
+      <div>
+        {phaseRows.map((row) => (
+          <PhaseTimelineRow
+            key={row.id}
+            row={row}
+            datesConfigured={datesConfigured}
+            expanded={expandedPhaseId === row.id}
+            onToggle={() =>
+              setExpandedPhaseId((current) =>
+                current === row.id ? null : row.id
+              )
+            }
+          />
+        ))}
+      </div>
+
+      {datesConfigured ? (
+        <div className="mt-5 flex items-center justify-between gap-4 border-t border-border pt-4 text-xs text-muted">
+          <span>{startDate ? formatProjectFooterDate(startDate) : "—"}</span>
+          <span>{deadline ? formatProjectFooterDate(deadline) : "—"}</span>
         </div>
       ) : (
-        <>
-          <div className="hidden overflow-hidden rounded-[10px] border border-border lg:block">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-background/70 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                <tr>
-                  <th className="px-4 py-3">Week</th>
-                  <th className="px-4 py-3">Date Range</th>
-                  <th className="px-4 py-3">Phase</th>
-                  <th className="px-4 py-3">Main Tasks</th>
-                  <th className="px-4 py-3">Dependencies</th>
-                  <th className="px-4 py-3">Deliverables</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Progress</th>
-                </tr>
-              </thead>
-              <tbody>
-                {weeks.map((week) => (
-                  <tr key={week.weekNumber} className="border-t border-border align-top">
-                    <td className="px-4 py-4 font-semibold text-ink">
-                      Week {week.weekNumber}
-                    </td>
-                    <td className="px-4 py-4 text-muted">
-                      {formatWeekRangeLabel(week.weekStart, week.weekEnd)}
-                    </td>
-                    <td className="px-4 py-4 text-ink">{week.phase}</td>
-                    <td className="px-4 py-4 text-ink">{week.mainTasks ?? "—"}</td>
-                    <td className="px-4 py-4 text-ink">{week.dependencies || "None"}</td>
-                    <td className="px-4 py-4 text-ink">
-                      {week.expectedDeliverables || "—"}
-                    </td>
-                    <td className="px-4 py-4">
-                      <span
-                        className={cn(
-                          "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
-                          getStatusBadgeClass(week.status)
-                        )}
-                      >
-                        {getStatusLabel(week.status)}
-                        {week.status === "current" ? " · Now" : ""}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="min-w-[120px]">
-                        <div className="h-2 rounded-full bg-border/70">
-                          <div
-                            className={cn(
-                              "h-2 rounded-full",
-                              week.status === "completed" && "bg-border",
-                              week.status === "current" && "bg-primary",
-                              week.status === "upcoming" && "bg-transparent"
-                            )}
-                            style={{ width: `${getProgressPercent(week.status)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="space-y-3 lg:hidden">
-            {weeks.map((week) => {
-              const expanded = expandedWeek === week.weekNumber;
-              return (
-                <article
-                  key={week.weekNumber}
-                  className="overflow-hidden rounded-[10px] border border-border"
-                >
-                  <button
-                    type="button"
-                    className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left"
-                    onClick={() =>
-                      setExpandedWeek(expanded ? null : week.weekNumber)
-                    }
-                    aria-expanded={expanded}
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-ink">
-                          Week {week.weekNumber}
-                        </p>
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                            getStatusBadgeClass(week.status)
-                          )}
-                        >
-                          {getStatusLabel(week.status)}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-muted">
-                        {formatWeekRangeLabel(week.weekStart, week.weekEnd)}
-                      </p>
-                      <p className="mt-2 text-sm font-medium text-ink">{week.phase}</p>
-                      <div className="mt-3 h-2 rounded-full bg-border/70">
-                        <div
-                          className={cn(
-                            "h-2 rounded-full",
-                            week.status === "completed" && "bg-border",
-                            week.status === "current" && "bg-primary"
-                          )}
-                          style={{ width: `${getProgressPercent(week.status)}%` }}
-                        />
-                      </div>
-                    </div>
-                    <ChevronDown
-                      className={cn(
-                        "mt-1 h-4 w-4 shrink-0 text-muted transition-transform",
-                        expanded && "rotate-180"
-                      )}
-                      aria-hidden="true"
-                    />
-                  </button>
-                  {expanded ? (
-                    <div className="border-t border-border bg-background/50 px-4 py-4">
-                      <WeekDetailRows week={week} />
-                    </div>
-                  ) : null}
-                </article>
-              );
-            })}
-          </div>
-
-          {(startDate || deadline) && (
-            <div className="mt-5 flex items-center justify-between gap-4 border-t border-border pt-4 text-xs text-muted">
-              <span>{startDate ? formatProjectFooterDate(startDate) : "—"}</span>
-              <span>{deadline ? formatProjectFooterDate(deadline) : "—"}</span>
-            </div>
-          )}
-        </>
+        <p className="mt-5 border-t border-border pt-4 text-xs text-muted">
+          Project dates have not been configured yet.
+        </p>
       )}
     </section>
   );

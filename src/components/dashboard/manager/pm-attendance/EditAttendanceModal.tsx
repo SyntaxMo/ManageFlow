@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PmAttendanceMemberRow } from "@/lib/data/pm-attendance";
 import { CHECK_IN_STATUS_OPTIONS } from "@/lib/attendance/pm-attendance";
 import { updateAttendance } from "@/lib/attendance/actions";
+import {
+  calculateWorkedMinutesFromTimestamps,
+  decimalHoursFromMinutes,
+  formatWorkedDuration,
+} from "@/lib/attendance/duration";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
@@ -15,7 +20,7 @@ interface EditAttendanceModalProps {
   onSuccess: (message: string) => void;
 }
 
-function toDateTimeLocalValue(isoValue: string | null | undefined, date: string) {
+function toDateTimeLocalValue(isoValue: string | null | undefined) {
   if (!isoValue) return "";
   const parsed = new Date(isoValue);
   const year = parsed.getFullYear();
@@ -43,7 +48,6 @@ export function EditAttendanceModal({
   const [scheduledEnd, setScheduledEnd] = useState("");
   const [checkedInAt, setCheckedInAt] = useState("");
   const [checkedOutAt, setCheckedOutAt] = useState("");
-  const [totalWorkedHours, setTotalWorkedHours] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -61,23 +65,51 @@ export function EditAttendanceModal({
         row.checkIn?.scheduled_end_time ?? row.dateBlock?.end_time
       )
     );
-    setCheckedInAt(toDateTimeLocalValue(row.checkIn?.checked_in_at, selectedDate));
-    setCheckedOutAt(toDateTimeLocalValue(row.checkIn?.checked_out_at, selectedDate));
-    setTotalWorkedHours(
-      row.checkIn?.total_worked_hours != null
-        ? String(row.checkIn.total_worked_hours)
-        : ""
-    );
+    setCheckedInAt(toDateTimeLocalValue(row.checkIn?.checked_in_at));
+    setCheckedOutAt(toDateTimeLocalValue(row.checkIn?.checked_out_at));
     setFieldErrors({});
     setFormError(null);
     setSubmitting(false);
   }, [open, row, selectedDate]);
+
+  const workedDuration = useMemo(() => {
+    if (!checkedInAt || !checkedOutAt) {
+      return null;
+    }
+
+    const checkedIn = new Date(checkedInAt);
+    const checkedOut = new Date(checkedOutAt);
+
+    if (Number.isNaN(checkedIn.getTime()) || Number.isNaN(checkedOut.getTime())) {
+      return null;
+    }
+
+    if (checkedOut <= checkedIn) {
+      return null;
+    }
+
+    const totalMinutes = calculateWorkedMinutesFromTimestamps(
+      checkedIn.toISOString(),
+      checkedOut.toISOString()
+    );
+
+    return {
+      totalMinutes,
+      totalWorkedHours: decimalHoursFromMinutes(totalMinutes),
+      label: formatWorkedDuration(decimalHoursFromMinutes(totalMinutes)),
+    };
+  }, [checkedInAt, checkedOutAt]);
 
   if (!open || !row) return null;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (submitting) return;
+
+    if (checkedInAt && checkedOutAt && !workedDuration) {
+      setFormError("Check-out time must be after check-in time.");
+      return;
+    }
 
     setSubmitting(true);
     setFormError(null);
@@ -92,7 +124,7 @@ export function EditAttendanceModal({
         scheduled_end_time: scheduledEnd,
         checked_in_at: checkedInAt || "",
         checked_out_at: checkedOutAt || "",
-        total_worked_hours: totalWorkedHours,
+        total_worked_hours: workedDuration?.totalWorkedHours ?? "",
       });
 
       if (!result.success) {
@@ -194,15 +226,15 @@ export function EditAttendanceModal({
             onChange={(event) => setCheckedOutAt(event.target.value)}
             error={fieldErrors.checked_out_at}
           />
-          <Input
-            label="Total worked hours"
-            type="number"
-            min="0"
-            step="0.01"
-            value={totalWorkedHours}
-            onChange={(event) => setTotalWorkedHours(event.target.value)}
-            error={fieldErrors.total_worked_hours}
-          />
+
+          <div className="rounded-[10px] border border-border bg-background px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Total worked time
+            </p>
+            <p className="mt-1 text-sm font-medium text-ink">
+              {workedDuration?.label ?? "—"}
+            </p>
+          </div>
 
           {formError && <p className="text-sm text-red-600">{formError}</p>}
 

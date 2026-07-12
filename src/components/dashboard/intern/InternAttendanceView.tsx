@@ -1,23 +1,15 @@
-import type {
-  CheckIn,
-  DailyReport,
-  WorkSchedule,
-  WorkScheduleBlock,
-} from "@/lib/db/types";
+import type { CheckIn, Profile, WorkSchedule, WorkScheduleBlock } from "@/lib/db/types";
+import type { AttendanceCalculationResult, AttendanceDisplayLabel } from "@/lib/attendance/calculate";
+import type { InternDailyReportVerification } from "@/lib/attendance/intern-report";
+import type { InternAttendanceHistoryRow } from "@/lib/data/intern-attendance";
 import { formatTime } from "@/lib/db/status";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
 import { InternAttendanceCheckInBar } from "@/components/dashboard/intern/InternAttendanceCheckInBar";
 import { InternWorkSchedulePanel } from "@/components/dashboard/intern/InternWorkSchedulePanel";
 
-type HistoryRow = {
-  date: string;
-  checkIn: CheckIn | null;
-  report: DailyReport | null;
-  statusLabel: "Present" | "Late" | "Absent";
-};
-
 interface InternAttendanceViewProps {
+  profile: Profile;
   todayLabel: string;
   userId: string;
   hasManager: boolean;
@@ -25,17 +17,38 @@ interface InternAttendanceViewProps {
   scheduleBlocks: WorkScheduleBlock[];
   todayBlock: WorkScheduleBlock | null;
   todayCheckIn: CheckIn | null;
-  hasSubmittedReport: boolean;
-  todayStatusLabel: "Present" | "Late" | "Absent" | "Not checked in";
+  todayReportVerification: InternDailyReportVerification;
+  todayCalculation: AttendanceCalculationResult;
+  todayDisplayLabel: AttendanceDisplayLabel;
   canAct: boolean;
   presentCount: number;
   lateCount: number;
   absentCount: number;
-  absencePercent: number;
-  history: HistoryRow[];
+  absencePercent: number | null;
+  history: InternAttendanceHistoryRow[];
+  checkInsLoadState: "loaded" | "error";
+  reportsLoadState: "loaded" | "error";
+}
+
+function getStatusBadgeVariant(label: AttendanceDisplayLabel) {
+  switch (label) {
+    case "Late":
+      return "warning";
+    case "Present":
+      return "success";
+    case "Checked In":
+      return "default";
+    case "On Leave":
+      return "muted";
+    case "Not Checked In":
+      return "muted";
+    default:
+      return "danger";
+  }
 }
 
 export function InternAttendanceView({
+  profile,
   todayLabel,
   userId,
   hasManager,
@@ -43,15 +56,20 @@ export function InternAttendanceView({
   scheduleBlocks,
   todayBlock,
   todayCheckIn,
-  hasSubmittedReport,
-  todayStatusLabel,
+  todayReportVerification,
+  todayCalculation,
+  todayDisplayLabel,
   canAct,
   presentCount,
   lateCount,
   absentCount,
   absencePercent,
   history,
+  checkInsLoadState,
+  reportsLoadState,
 }: InternAttendanceViewProps) {
+  const absenceDisplay = absencePercent ?? 0;
+
   return (
     <div>
       <div className="mb-5">
@@ -61,6 +79,17 @@ export function InternAttendanceView({
         </p>
       </div>
 
+      {(checkInsLoadState === "error" || reportsLoadState === "error") && (
+        <div
+          role="alert"
+          className="mb-4 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {checkInsLoadState === "error"
+            ? "We could not load your attendance records."
+            : "We could not load your daily report status."}
+        </div>
+      )}
+
       <InternAttendanceCheckInBar
         todayLabel={todayLabel}
         userId={userId}
@@ -68,8 +97,9 @@ export function InternAttendanceView({
         schedule={schedule}
         todayBlock={todayBlock}
         checkIn={todayCheckIn}
-        hasSubmittedReport={hasSubmittedReport}
-        todayStatusLabel={todayStatusLabel}
+        todayReportVerification={todayReportVerification}
+        todayCalculation={todayCalculation}
+        todayDisplayLabel={todayDisplayLabel}
         canAct={canAct}
       />
 
@@ -99,27 +129,31 @@ export function InternAttendanceView({
           <p
             className={cn(
               "text-sm font-semibold",
-              absencePercent >= 12
-                ? "text-red-600"
-                : absencePercent >= 8
-                  ? "text-amber-600"
-                  : "text-emerald-600"
+              absencePercent == null
+                ? "text-muted"
+                : absenceDisplay >= 12
+                  ? "text-red-600"
+                  : absenceDisplay >= 8
+                    ? "text-amber-600"
+                    : "text-emerald-600"
             )}
           >
-            {absencePercent}%
+            {absencePercent == null ? "—" : `${absenceDisplay}%`}
           </p>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-background">
           <div
             className={cn(
               "h-full rounded-full",
-              absencePercent >= 12
-                ? "bg-red-500"
-                : absencePercent >= 8
-                  ? "bg-amber-500"
-                  : "bg-emerald-500"
+              absencePercent == null
+                ? "bg-border"
+                : absenceDisplay >= 12
+                  ? "bg-red-500"
+                  : absenceDisplay >= 8
+                    ? "bg-amber-500"
+                    : "bg-emerald-500"
             )}
-            style={{ width: `${Math.min(100, absencePercent)}%` }}
+            style={{ width: `${Math.min(100, absenceDisplay)}%` }}
           />
         </div>
         <div className="mt-2 flex justify-between text-[10px] text-muted">
@@ -132,11 +166,12 @@ export function InternAttendanceView({
       <section className="rounded-[12px] border border-border bg-white px-4 py-4 sm:px-5">
         <h2 className="mb-4 text-sm font-semibold text-ink">Attendance History</h2>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-left text-sm">
+          <table className="w-full min-w-[620px] text-left text-sm">
             <thead>
               <tr className="border-b border-border text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
                 <th className="pb-3 pr-3 font-semibold">Date</th>
                 <th className="pb-3 pr-3 font-semibold">Check-in</th>
+                <th className="pb-3 pr-3 font-semibold">Hours</th>
                 <th className="pb-3 pr-3 font-semibold">Status</th>
                 <th className="pb-3 font-semibold">Report</th>
               </tr>
@@ -144,7 +179,7 @@ export function InternAttendanceView({
             <tbody>
               {history.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-muted">
+                  <td colSpan={5} className="py-8 text-center text-muted">
                     No attendance history yet.
                   </td>
                 </tr>
@@ -157,21 +192,14 @@ export function InternAttendanceView({
                         ? formatTime(row.checkIn.checked_in_at)
                         : "—"}
                     </td>
+                    <td className="py-3 pr-3 text-ink">{row.hoursLabel}</td>
                     <td className="py-3 pr-3">
-                      <Badge
-                        variant={
-                          row.statusLabel === "Late"
-                            ? "warning"
-                            : row.statusLabel === "Present"
-                              ? "success"
-                              : "danger"
-                        }
-                      >
+                      <Badge variant={getStatusBadgeVariant(row.statusLabel)}>
                         {row.statusLabel}
                       </Badge>
                     </td>
                     <td className="py-3">
-                      {row.report ? (
+                      {row.reportSubmitted ? (
                         <span className="font-medium text-emerald-700">
                           ✓ Submitted
                         </span>
@@ -186,6 +214,10 @@ export function InternAttendanceView({
           </table>
         </div>
       </section>
+
+      <p className="mt-3 text-xs text-muted">
+        Signed in as {profile.full_name}
+      </p>
     </div>
   );
 }

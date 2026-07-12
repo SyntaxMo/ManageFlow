@@ -7,6 +7,10 @@ import {
   updateAttendanceSchema,
 } from "@/lib/attendance/validation";
 import { getScheduleBlockForDate } from "@/lib/attendance/pm-attendance";
+import {
+  calculateWorkedMinutesFromTimestamps,
+  decimalHoursFromMinutes,
+} from "@/lib/attendance/duration";
 import type { CheckInStatus, WorkScheduleBlock } from "@/lib/db/types";
 
 const APPROVED_SCHEDULE_STATUSES = ["active", "approved"];
@@ -231,6 +235,13 @@ export async function updateAttendance(
       ? toIsoDateTime(parsed.data.check_in_date, scheduledEnd ?? "17:00")
       : null;
 
+  const totalWorkedHours =
+    checkedInAt && checkedOutAt
+      ? decimalHoursFromMinutes(
+          calculateWorkedMinutesFromTimestamps(checkedInAt, checkedOutAt)
+        )
+      : parsed.data.total_worked_hours ?? null;
+
   const result = await upsertCheckIn(context.supabase, {
     user_id: parsed.data.intern_id,
     check_in_date: parsed.data.check_in_date,
@@ -240,7 +251,7 @@ export async function updateAttendance(
     scheduled_end_time: scheduledEnd,
     checked_in_at: checkedInAt,
     checked_out_at: checkedOutAt,
-    total_worked_hours: parsed.data.total_worked_hours ?? null,
+    total_worked_hours: totalWorkedHours,
   });
 
   if (!result.success) {
