@@ -47,7 +47,7 @@ function MemberAvatar({ member }: { member: PmTeamMemberCard["member"] }) {
   }
 
   return (
-    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-deep text-sm font-semibold text-white">
+    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15 text-sm font-semibold text-white">
       {getInitials(member.full_name)}
     </div>
   );
@@ -69,23 +69,23 @@ export function TeamMemberCard({
     <article className="flex h-full flex-col overflow-hidden rounded-[12px] border border-border bg-white">
       <Link
         href={`/dashboard/team/${member.id}`}
-        className="block border-b border-border bg-sky-50/40 px-5 py-4 transition-colors hover:bg-sky-50/70"
+        className="block bg-deep px-5 py-4 text-white transition-colors hover:bg-deep/95"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <MemberAvatar member={member} />
             <div className="min-w-0">
-              <p className="truncate text-base font-semibold text-ink">
+              <p className="truncate text-base font-semibold text-white">
                 {member.full_name}
               </p>
-              <p className="truncate text-sm text-muted">
+              <p className="truncate text-sm text-white/75">
                 {member.job_title ?? member.role.replace(/_/g, " ")}
               </p>
             </div>
           </div>
 
           {attendanceLoadState === "error" || attendanceLabel == null ? (
-            <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-muted">
+            <span className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white">
               Unavailable
             </span>
           ) : (

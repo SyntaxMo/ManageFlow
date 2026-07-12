@@ -21,6 +21,7 @@ interface ManagerAssignmentModalProps {
   hasManager: boolean;
   canAct: boolean;
   allowSelection?: boolean;
+  assignmentLoading?: boolean;
   onAssignmentChange?: () => void;
 }
 
@@ -29,6 +30,7 @@ export function ManagerAssignmentModal({
   hasManager,
   canAct,
   allowSelection = true,
+  assignmentLoading = false,
   onAssignmentChange,
 }: ManagerAssignmentModalProps) {
   const router = useRouter();
@@ -162,6 +164,7 @@ export function ManagerAssignmentModal({
     allowSelection &&
     !hasManager &&
     !pendingAssignment &&
+    !assignmentLoading &&
     !profileLoading &&
     Boolean(internProfile?.team_id);
 
@@ -222,7 +225,9 @@ export function ManagerAssignmentModal({
       }
 
       if (existingPending) {
-        setError("You already have a pending assignment request.");
+        setOpen(false);
+        onAssignmentChange?.();
+        router.refresh();
         return;
       }
 

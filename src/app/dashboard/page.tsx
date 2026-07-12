@@ -2,9 +2,10 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getUserProfile } from "@/lib/auth/get-user-profile";
 import type { UserRole } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { withTeamProfile } from "@/lib/auth/with-team-profile";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ProjectManagerShell } from "@/components/layout/ProjectManagerShell";
+import { InternShell } from "@/components/layout/InternShell";
 import { AccountStatusBanner } from "@/components/dashboard/AccountStatusBanner";
 import { AdminStats } from "@/components/dashboard/admin/AdminStats";
 import { InternDashboard } from "@/components/dashboard/views/InternDashboard";
@@ -12,7 +13,6 @@ import { ProjectManagerDashboard } from "@/components/dashboard/views/ProjectMan
 import { TeamLeadDashboard } from "@/components/dashboard/views/TeamLeadDashboard";
 import { DashboardSkeleton } from "@/components/dashboard/manager/pm-dashboard/DashboardSkeleton";
 import { getAdminDashboardCounts } from "@/lib/data/dashboard";
-import type { Profile as DbProfile } from "@/lib/db/types";
 
 export default async function DashboardPage() {
   const data = await getUserProfile();
@@ -23,18 +23,7 @@ export default async function DashboardPage() {
 
   const { profile } = data;
   const role = profile.role as UserRole;
-
-  const supabase = await createClient();
-  let profileWithTeam = profile as DbProfile;
-
-  if (profile.team_id) {
-    const { data: team } = await supabase
-      .from("teams")
-      .select("name")
-      .eq("id", profile.team_id)
-      .maybeSingle();
-    profileWithTeam = { ...(profile as DbProfile), teams: team };
-  }
+  const profileWithTeam = await withTeamProfile(profile);
 
   if (role === "project_manager") {
     return (
@@ -44,6 +33,17 @@ export default async function DashboardPage() {
           <ProjectManagerDashboard profile={profileWithTeam} />
         </Suspense>
       </ProjectManagerShell>
+    );
+  }
+
+  if (role === "intern") {
+    return (
+      <InternShell profile={profileWithTeam}>
+        <AccountStatusBanner status={profile.status} />
+        <Suspense fallback={<DashboardSkeleton />}>
+          <InternDashboard profile={profileWithTeam} />
+        </Suspense>
+      </InternShell>
     );
   }
 
@@ -62,8 +62,6 @@ export default async function DashboardPage() {
           <AdminStats counts={await getAdminDashboardCounts()} />
         </div>
       )}
-
-      {role === "intern" && <InternDashboard profile={profileWithTeam} />}
 
       {role === "team_lead" && (
         <TeamLeadDashboard profile={profileWithTeam} />

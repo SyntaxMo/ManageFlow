@@ -1,12 +1,18 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getUserProfile } from "@/lib/auth/get-user-profile";
-import { createClient } from "@/lib/supabase/server";
+import { withTeamProfile } from "@/lib/auth/with-team-profile";
 import { ProjectManagerShell } from "@/components/layout/ProjectManagerShell";
+import { InternShell } from "@/components/layout/InternShell";
 import { PmScheduleView } from "@/components/dashboard/manager/pm-schedule/PmScheduleView";
 import { PmScheduleSkeleton } from "@/components/dashboard/manager/pm-schedule/PmScheduleSkeleton";
-import { getPmSchedulePageData } from "@/lib/data/pm-schedule";
-import type { Profile as DbProfile } from "@/lib/db/types";
+import { InternScheduleView } from "@/components/dashboard/intern/InternScheduleView";
+import {
+  getInternSchedulePageData,
+  getPmSchedulePageData,
+} from "@/lib/data/pm-schedule";
+import { getInternWorkSchedule } from "@/lib/data/intern-work-schedule";
+import { InternWorkSchedulePanel } from "@/components/dashboard/intern/InternWorkSchedulePanel";
 
 async function ScheduleContent({
   managerId,
@@ -15,7 +21,7 @@ async function ScheduleContent({
 }: {
   managerId: string;
   teamId: string | null;
-  profileWithTeam: DbProfile;
+  profileWithTeam: Awaited<ReturnType<typeof withTeamProfile>>;
 }) {
   const pageData = await getPmSchedulePageData(
     managerId,
@@ -23,6 +29,27 @@ async function ScheduleContent({
     profileWithTeam
   );
   return <PmScheduleView data={pageData} />;
+}
+
+async function InternScheduleContent({
+  profileWithTeam,
+}: {
+  profileWithTeam: Awaited<ReturnType<typeof withTeamProfile>>;
+}) {
+  const [pageData, workSchedule] = await Promise.all([
+    getInternSchedulePageData(profileWithTeam.id, profileWithTeam),
+    getInternWorkSchedule(profileWithTeam.id),
+  ]);
+
+  return (
+    <div>
+      <InternWorkSchedulePanel
+        schedule={workSchedule.schedule}
+        blocks={workSchedule.blocks}
+      />
+      <InternScheduleView data={pageData} />
+    </div>
+  );
 }
 
 export default async function SchedulePage() {
@@ -33,21 +60,23 @@ export default async function SchedulePage() {
   }
 
   const { profile } = data;
+  const profileWithTeam = await withTeamProfile(profile);
+
+  if (profile.role === "intern") {
+    return (
+      <InternShell
+        profile={profileWithTeam}
+        contentMaxWidthClass="max-w-[1100px]"
+      >
+        <Suspense fallback={<PmScheduleSkeleton />}>
+          <InternScheduleContent profileWithTeam={profileWithTeam} />
+        </Suspense>
+      </InternShell>
+    );
+  }
 
   if (profile.role !== "project_manager") {
     redirect("/dashboard");
-  }
-
-  const supabase = await createClient();
-  let profileWithTeam = profile as DbProfile;
-
-  if (profile.team_id) {
-    const { data: team } = await supabase
-      .from("teams")
-      .select("name")
-      .eq("id", profile.team_id)
-      .maybeSingle();
-    profileWithTeam = { ...(profile as DbProfile), teams: team };
   }
 
   return (

@@ -139,7 +139,9 @@ export function InternManagerSection({
     manager: initialManager,
     managerTeamName: initialManagerTeamName,
     latestAssignment: initialLatestAssignment,
-    isLoading: false,
+    // Start loading so the request modal does not auto-open before we know
+    // whether a pending assignment already exists.
+    isLoading: true,
     error: initialManagerError,
   });
 
@@ -299,6 +301,7 @@ export function InternManagerSection({
         hasManager={hasManager}
         canAct={canAct}
         allowSelection={!pendingAssignment}
+        assignmentLoading={state.isLoading}
         onAssignmentChange={handleAssignmentChange}
       />
     </>

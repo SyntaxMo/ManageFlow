@@ -242,6 +242,36 @@ using (
   )
 );
 
+drop policy if exists "Managers can insert team schedule blocks" on work_schedule_blocks;
+create policy "Managers can insert team schedule blocks"
+on work_schedule_blocks for insert to authenticated
+with check (
+  exists (
+    select 1
+    from work_schedules ws
+    join profiles p on p.id = ws.user_id
+    where ws.id = work_schedule_blocks.schedule_id
+      and p.manager_id = auth.uid()
+      and p.role = 'intern'
+      and p.status = 'active'
+  )
+);
+
+drop policy if exists "Managers can delete team schedule blocks" on work_schedule_blocks;
+create policy "Managers can delete team schedule blocks"
+on work_schedule_blocks for delete to authenticated
+using (
+  exists (
+    select 1
+    from work_schedules ws
+    join profiles p on p.id = ws.user_id
+    where ws.id = work_schedule_blocks.schedule_id
+      and p.manager_id = auth.uid()
+      and p.role = 'intern'
+      and p.status = 'active'
+  )
+);
+
 drop policy if exists "Managers can read team schedules" on work_schedules;
 create policy "Managers can read team schedules"
 on work_schedules for select to authenticated
@@ -260,10 +290,43 @@ using (
   )
 );
 
+drop policy if exists "Managers can insert team schedules" on work_schedules;
+create policy "Managers can insert team schedules"
+on work_schedules for insert to authenticated
+with check (
+  exists (
+    select 1 from profiles p
+    where p.id = work_schedules.user_id
+      and p.manager_id = auth.uid()
+      and p.role = 'intern'
+      and p.status = 'active'
+  )
+);
+
+drop policy if exists "Managers can update team schedules" on work_schedules;
+create policy "Managers can update team schedules"
+on work_schedules for update to authenticated
+using (
+  exists (
+    select 1 from profiles p
+    where p.id = work_schedules.user_id
+      and p.manager_id = auth.uid()
+      and p.role = 'intern'
+      and p.status = 'active'
+  )
+)
+with check (
+  exists (
+    select 1 from profiles p
+    where p.id = work_schedules.user_id
+      and p.manager_id = auth.uid()
+      and p.role = 'intern'
+      and p.status = 'active'
+  )
+);
+
 drop policy if exists "Team leads can read supervised projects" on projects;
-create policy "Team leads can read supervised projects"
-on projects for select to authenticated
-using (team_lead_id = auth.uid());
+-- Covered by "Users can read projects they own or manage" (team_lead_id = auth.uid()).
 
 drop policy if exists "Project members can read projects" on project_members;
 drop policy if exists "Managers and team leads can read managed intern memberships" on project_members;
@@ -283,14 +346,6 @@ using (
   )
 );
 
-drop policy if exists "Managers can read member projects" on projects;
-create policy "Managers can read member projects"
-on projects for select to authenticated
-using (
-  exists (
-    select 1 from project_members pm
-    inner join profiles member_profile on member_profile.id = pm.user_id
-    where pm.project_id = projects.id
-      and member_profile.manager_id = auth.uid()
-  )
-);
+-- NEVER recreate "Managers can read member projects" here — it queries
+-- project_members under RLS and causes infinite recursion.
+-- Use SECURITY DEFINER helpers from fix-projects-project-members-rls-FINAL.sql.

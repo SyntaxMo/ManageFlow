@@ -548,6 +548,12 @@ export async function getProjectManagerDashboardData(
         scheduledToday,
         todayBlock,
         checkIn,
+        hasSubmittedReport: Boolean(
+          report &&
+            ["submitted", "under_review", "approved"].includes(
+              report.review_status
+            )
+        ),
       }),
       taskTotal: memberTasks.length,
       taskDone: doneTasks,

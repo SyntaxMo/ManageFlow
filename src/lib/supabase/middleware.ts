@@ -51,10 +51,20 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (isAuthRoute && user) {
-    const dashboardUrl = request.nextUrl.clone();
-    dashboardUrl.pathname = "/dashboard";
-    dashboardUrl.search = "";
-    return NextResponse.redirect(dashboardUrl);
+    // Only bounce away from auth pages when a profile exists.
+    // Otherwise login ↔ dashboard redirects loop and the UI goes white.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profile) {
+      const dashboardUrl = request.nextUrl.clone();
+      dashboardUrl.pathname = "/dashboard";
+      dashboardUrl.search = "";
+      return NextResponse.redirect(dashboardUrl);
+    }
   }
 
   return supabaseResponse;

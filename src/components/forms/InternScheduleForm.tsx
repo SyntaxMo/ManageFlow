@@ -53,25 +53,56 @@ function calculateHours(startTime: string, endTime: string): number {
 export interface InternScheduleFormProps {
   onChange: (blocks: ScheduleBlock[], totalHours: number, isValid: boolean) => void;
   disabled?: boolean;
+  initialBlocks?: ScheduleBlock[];
+  title?: string;
+  description?: string;
+}
+
+function buildInitialSchedules(
+  initialBlocks?: ScheduleBlock[]
+): Record<number, DaySchedule> {
+  const base = Object.fromEntries(
+    DAYS.map((day) => [
+      day.value,
+      {
+        enabled: false,
+        start_time: DEFAULT_START_TIME,
+        end_time: DEFAULT_END_TIME,
+      },
+    ])
+  ) as Record<number, DaySchedule>;
+
+  for (const block of initialBlocks ?? []) {
+    base[block.day_of_week] = {
+      enabled: true,
+      start_time: block.start_time.slice(0, 5),
+      end_time: block.end_time.slice(0, 5),
+    };
+  }
+
+  return base;
 }
 
 export function InternScheduleForm({
   onChange,
   disabled = false,
+  initialBlocks,
+  title = "Weekly Schedule",
+  description = "Select your working days and set start/end times. New days copy the latest time range. Minimum 32 hours per week required.",
 }: InternScheduleFormProps) {
   const [schedules, setSchedules] = useState<Record<number, DaySchedule>>(() =>
-    Object.fromEntries(
-      DAYS.map((day) => [
-        day.value,
-        {
-          enabled: false,
-          start_time: DEFAULT_START_TIME,
-          end_time: DEFAULT_END_TIME,
-        },
-      ])
-    )
+    buildInitialSchedules(initialBlocks)
   );
-  const [latestTimeRange, setLatestTimeRange] = useState<TimeRange | null>(null);
+  const [latestTimeRange, setLatestTimeRange] = useState<TimeRange | null>(
+    () => {
+      const first = initialBlocks?.[0];
+      if (!first) return null;
+      return {
+        start_time: first.start_time.slice(0, 5),
+        end_time: first.end_time.slice(0, 5),
+      };
+    }
+  );
 
   const { blocks, totalHours, isValid } = useMemo(() => {
     const result: ScheduleBlock[] = [];
@@ -166,13 +197,10 @@ export function InternScheduleForm({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Clock className="h-5 w-5 text-accent" />
-        <h3 className="text-base font-semibold text-ink">Weekly Schedule</h3>
+        <Clock className="h-5 w-5 text-primary" />
+        <h3 className="text-base font-semibold text-ink">{title}</h3>
       </div>
-      <p className="text-sm text-muted">
-        Select your working days and set start/end times. New days copy the
-        latest time range. Minimum 32 hours per week required.
-      </p>
+      <p className="text-sm text-muted">{description}</p>
 
       <div className="space-y-3">
         {DAYS.map((day) => {
@@ -187,7 +215,7 @@ export function InternScheduleForm({
               className={cn(
                 "rounded-lg border p-4 transition-colors",
                 schedule.enabled
-                  ? "border-primary/30 bg-primary/5"
+                  ? "border-deep/20 bg-deep/5"
                   : "border-border bg-white"
               )}
             >

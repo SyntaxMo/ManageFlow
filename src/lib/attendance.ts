@@ -37,10 +37,17 @@ export function getInternAttendanceStatus(input: {
   hasSchedule: boolean;
   checkIn: CheckIn | null;
   todayBlock: WorkScheduleBlock | null;
+  hasSubmittedReport?: boolean;
   now?: Date;
 }): InternAttendanceStatus {
-  const { hasManager, scheduledToday, hasSchedule, checkIn, todayBlock } =
-    input;
+  const {
+    hasManager,
+    scheduledToday,
+    hasSchedule,
+    checkIn,
+    todayBlock,
+    hasSubmittedReport = false,
+  } = input;
   const now = input.now ?? new Date();
 
   if (!hasManager) return "not_assigned";
@@ -51,7 +58,9 @@ export function getInternAttendanceStatus(input: {
       ? "absent"
       : "not_checked_in";
   }
-  if (checkIn.status === "completed") return "completed";
+  if (checkIn.status === "absent") return "absent";
+  // Completed only when checked out AND daily report submitted
+  if (checkIn.status === "completed" && hasSubmittedReport) return "completed";
   if (checkIn.status === "late") return "late";
   return "checked_in";
 }
@@ -60,9 +69,15 @@ export function getPmInternAttendanceStatus(input: {
   scheduledToday: boolean;
   todayBlock: WorkScheduleBlock | null;
   checkIn: CheckIn | null;
+  hasSubmittedReport?: boolean;
   now?: Date;
 }): PmInternAttendanceStatus {
-  const { scheduledToday, todayBlock, checkIn } = input;
+  const {
+    scheduledToday,
+    todayBlock,
+    checkIn,
+    hasSubmittedReport = false,
+  } = input;
   const now = input.now ?? new Date();
 
   if (!scheduledToday || !todayBlock) return "not_scheduled";
@@ -71,7 +86,8 @@ export function getPmInternAttendanceStatus(input: {
       ? "absent"
       : "not_checked_in";
   }
-  if (checkIn.status === "completed") return "completed";
+  if (checkIn.status === "absent") return "absent";
+  if (checkIn.status === "completed" && hasSubmittedReport) return "completed";
   if (checkIn.status === "late") return "late";
   return "checked_in";
 }

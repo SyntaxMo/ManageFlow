@@ -1,16 +1,20 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getUserProfile } from "@/lib/auth/get-user-profile";
+import { withTeamProfile } from "@/lib/auth/with-team-profile";
 import { createClient } from "@/lib/supabase/server";
 import { ProjectManagerShell } from "@/components/layout/ProjectManagerShell";
+import { InternShell } from "@/components/layout/InternShell";
 import { PmTaskSheetView } from "@/components/dashboard/manager/pm-task-sheet/PmTaskSheetView";
 import { PmTaskSheetSkeleton } from "@/components/dashboard/manager/pm-task-sheet/PmTaskSheetSkeleton";
+import { InternTaskSheetView } from "@/components/dashboard/intern/InternTaskSheetView";
 import {
   getDefaultTaskSheetDate,
   getPmTaskSheetData,
   isValidTaskSheetDate,
 } from "@/lib/data/pm-task-sheet";
-import type { Profile as DbProfile } from "@/lib/db/types";
+import { getLocalDateString } from "@/lib/db/status";
+import type { Task } from "@/lib/db/types";
 
 async function TaskSheetContent({
   managerId,
@@ -42,24 +46,35 @@ export default async function TaskSheetPage({
   }
 
   const { profile } = data;
+  const profileWithTeam = await withTeamProfile(profile);
+  const params = await searchParams;
+
+  if (profile.role === "intern") {
+    const supabase = await createClient();
+    const today = getLocalDateString();
+    const { data: tasks } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("assigned_to", profile.id)
+      .or(`due_date.eq.${today},due_date.is.null`)
+      .order("title");
+
+    return (
+      <InternShell
+        profile={profileWithTeam}
+        contentMaxWidthClass="max-w-[1040px]"
+      >
+        <InternTaskSheetView
+          tasks={(tasks ?? []) as Task[]}
+          dateLabel={today}
+        />
+      </InternShell>
+    );
+  }
 
   if (profile.role !== "project_manager") {
     redirect("/dashboard");
   }
-
-  const supabase = await createClient();
-  let profileWithTeam = profile as DbProfile;
-
-  if (profile.team_id) {
-    const { data: team } = await supabase
-      .from("teams")
-      .select("name")
-      .eq("id", profile.team_id)
-      .maybeSingle();
-    profileWithTeam = { ...(profile as DbProfile), teams: team };
-  }
-
-  const params = await searchParams;
 
   return (
     <ProjectManagerShell

@@ -71,7 +71,7 @@ function isTaskFinished(status: string) {
   return status === "done";
 }
 
-function buildCurrentGoal(
+export function buildCurrentGoal(
   project: Project | null,
   milestones: ProjectTimelineItem[],
   today: string
@@ -97,7 +97,7 @@ function buildCurrentGoal(
   };
 }
 
-function buildTimelineWeeks(
+export function buildTimelineWeeks(
   project: Project | null,
   milestones: ProjectTimelineItem[],
   today: string
@@ -346,6 +346,9 @@ export async function getPmDashboardPageData(
       scheduledToday,
       todayBlock,
       checkIn,
+      hasSubmittedReport: report
+        ? ["submitted", "under_review", "approved"].includes(report.review_status)
+        : false,
     });
 
     return {

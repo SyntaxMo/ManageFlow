@@ -52,6 +52,15 @@ export async function getUserProfile(): Promise<UserProfileResult | null> {
 
   if (profileError) {
     console.error("Failed to fetch profile:", profileError.message);
+    return {
+      user: { id: user.id, email: user.email },
+      profile: null,
+      schedule: null,
+    };
+  }
+
+  if (!profile) {
+    console.warn("Authenticated user has no profile row:", user.id, user.email);
   }
 
   let schedule: WorkSchedule | null = null;

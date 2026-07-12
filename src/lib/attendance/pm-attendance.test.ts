@@ -38,6 +38,52 @@ describe("pm attendance helpers", () => {
     expect(status).toBe("absent");
   });
 
+  it("treats past days without a report as absent even if checked in", () => {
+    const status = getPmInternAttendanceStatusForDate({
+      selectedDate: "2025-07-07",
+      today: "2025-07-12",
+      dateBlock: mondayBlock,
+      checkIn: {
+        id: "1",
+        user_id: "intern-1",
+        schedule_id: "schedule-1",
+        check_in_date: "2025-07-07",
+        scheduled_start_time: "09:00",
+        scheduled_end_time: "17:00",
+        checked_in_at: "2025-07-07T06:52:00.000Z",
+        checked_out_at: "2025-07-07T14:00:00.000Z",
+        status: "completed",
+        total_worked_hours: 8,
+      },
+      hasSubmittedReport: false,
+    });
+
+    expect(status).toBe("absent");
+  });
+
+  it("marks past days completed only with check-in and report", () => {
+    const status = getPmInternAttendanceStatusForDate({
+      selectedDate: "2025-07-07",
+      today: "2025-07-12",
+      dateBlock: mondayBlock,
+      checkIn: {
+        id: "1",
+        user_id: "intern-1",
+        schedule_id: "schedule-1",
+        check_in_date: "2025-07-07",
+        scheduled_start_time: "09:00",
+        scheduled_end_time: "17:00",
+        checked_in_at: "2025-07-07T06:52:00.000Z",
+        checked_out_at: "2025-07-07T14:00:00.000Z",
+        status: "completed",
+        total_worked_hours: 8,
+      },
+      hasSubmittedReport: true,
+    });
+
+    expect(status).toBe("completed");
+  });
+
   it("calculates absence percentage from scheduled working days", () => {
     const blocks = [
       mondayBlock,
@@ -69,8 +115,10 @@ describe("pm attendance helpers", () => {
       today: "2025-07-12",
       blocks,
       checkInsByDate,
+      reportsByDate: new Map([["2025-07-07", true]]),
     });
 
+    // Mon present (check-in + report), Tue/Wed absent → 67%
     expect(percentage).toBe(67);
     expect(getScheduleBlockForDate("2025-07-07", blocks)?.day_of_week).toBe(1);
   });

@@ -21,7 +21,7 @@ export function TodaysMeetingsPanel({
 
       {meetings.length === 0 ? (
         <div className="rounded-[10px] border border-dashed border-border bg-background px-4 py-8 text-center">
-          <p className="text-sm font-medium text-ink">No meetings today</p>
+          <p className="text-sm font-medium text-ink">No meetings yet</p>
           <p className="mt-1 text-xs text-muted">
             Scheduled meetings for today will appear here.
           </p>

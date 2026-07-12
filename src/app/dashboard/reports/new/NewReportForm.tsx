@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile, Project, Template } from "@/lib/db/types";
 import { getLocalDateString } from "@/lib/db/status";
-import { DashboardShell } from "@/components/layout/DashboardShell";
+import { InternShell } from "@/components/layout/InternShell";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -291,16 +291,14 @@ interface NewReportPageClientProps extends NewReportFormProps {
 
 export function NewReportPageClient(props: NewReportPageClientProps) {
   return (
-    <DashboardShell
-      fullName={props.profile.full_name}
-      role={props.role}
-      status={props.status}
-      title="Submit Daily Report"
-      subtitle="SKRA daily report template"
-    >
-      <div className="mx-auto max-w-3xl">
-        <NewReportForm {...props} />
+    <InternShell profile={props.profile} contentMaxWidthClass="max-w-3xl">
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold text-ink sm:text-[28px]">
+          Submit Daily Report
+        </h1>
+        <p className="mt-1 text-sm text-muted">SKRA daily report template</p>
       </div>
-    </DashboardShell>
+      <NewReportForm {...props} />
+    </InternShell>
   );
 }

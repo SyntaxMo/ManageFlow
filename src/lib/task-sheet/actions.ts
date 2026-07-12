@@ -94,3 +94,70 @@ export async function approveTask(taskId: string): Promise<ApproveTaskResult> {
   revalidatePath("/dashboard/task-sheet");
   return { success: true };
 }
+
+export type CycleInternTaskResult =
+  | { success: true; status: string }
+  | { success: false; error: string };
+
+const INTERN_TASK_CYCLE = ["todo", "in_progress", "done"] as const;
+
+export async function cycleInternTaskStatus(
+  taskId: string
+): Promise<CycleInternTaskResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { success: false, error: "You must be signed in to update tasks." };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!profile || profile.role !== "intern") {
+    return { success: false, error: "Only interns can update their task status." };
+  }
+
+  const { data: task, error: taskError } = await supabase
+    .from("tasks")
+    .select("id, assigned_to, status")
+    .eq("id", taskId)
+    .maybeSingle();
+
+  if (taskError || !task) {
+    return { success: false, error: "Task not found." };
+  }
+
+  if (task.assigned_to !== profile.id) {
+    return { success: false, error: "You can only update your own tasks." };
+  }
+
+  const current = INTERN_TASK_CYCLE.includes(
+    task.status as (typeof INTERN_TASK_CYCLE)[number]
+  )
+    ? (task.status as (typeof INTERN_TASK_CYCLE)[number])
+    : "todo";
+  const nextIndex =
+    (INTERN_TASK_CYCLE.indexOf(current) + 1) % INTERN_TASK_CYCLE.length;
+  const nextStatus = INTERN_TASK_CYCLE[nextIndex];
+
+  const { error: updateError } = await supabase
+    .from("tasks")
+    .update({ status: nextStatus })
+    .eq("id", taskId);
+
+  if (updateError) {
+    console.error("Failed to update task status:", updateError.message);
+    return { success: false, error: "Failed to update task status." };
+  }
+
+  revalidatePath("/dashboard/task-sheet");
+  revalidatePath("/dashboard");
+  return { success: true, status: nextStatus };
+}
+

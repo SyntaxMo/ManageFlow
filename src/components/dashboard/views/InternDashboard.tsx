@@ -1,133 +1,114 @@
+import {
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  TrendingUp,
+} from "lucide-react";
 import type { Profile } from "@/lib/db/types";
-
-import { isAccountActive } from "@/lib/db/status";
-
-import { getInternDashboardData } from "@/lib/data/dashboard";
-
-import { ScheduleCard } from "@/components/dashboard/ScheduleCard";
-
-import { CheckInCard } from "@/components/dashboard/intern/CheckInCard";
-
-import { DailyReportCard } from "@/components/dashboard/intern/DailyReportCard";
-
-import { MeetingRequestCard } from "@/components/dashboard/intern/MeetingRequestCard";
-
+import { getInternDashboardPageData } from "@/lib/data/intern-workspace";
+import { DashboardGreeting } from "@/components/dashboard/manager/pm-dashboard/DashboardGreeting";
+import { CurrentGoalBanner } from "@/components/dashboard/manager/pm-dashboard/CurrentGoalBanner";
+import {
+  DashboardStatCard,
+  DashboardStatsGrid,
+} from "@/components/dashboard/manager/pm-dashboard/DashboardStatCard";
+import { TodaysMeetingsCard } from "@/components/dashboard/manager/pm-dashboard/TodaysMeetingsCard";
+import { InternshipTimelineCard } from "@/components/dashboard/manager/pm-dashboard/InternshipTimelineCard";
+import { DashboardErrorState } from "@/components/dashboard/manager/pm-dashboard/DashboardErrorState";
+import { TasksTodayCard } from "@/components/dashboard/shared/TasksTodayCard";
 import { InternManagerSection } from "@/components/dashboard/intern/InternManagerSection";
 
-import { ProgressCard } from "@/components/dashboard/intern/ProgressCard";
-
-import { ProjectTimelineCard } from "@/components/dashboard/intern/ProjectTimelineCard";
-
-
-
-export async function InternDashboard({ profile }: { profile: Profile }) {
-
-  const data = await getInternDashboardData(profile.id);
-
-  const canAct = isAccountActive(profile.status);
-
-  const hasManager = Boolean(data.managerId);
-
-
-
+function QuickReminder({ message }: { message: string }) {
   return (
-
-    <div className="space-y-4">
-
-      <div className="grid gap-4 lg:grid-cols-2">
-
-        <CheckInCard
-
-          userId={profile.id}
-
-          hasManager={hasManager}
-
-          schedule={data.schedule}
-
-          scheduleId={data.schedule?.id ?? null}
-
-          todayBlock={data.todayBlock}
-
-          checkIn={data.checkIn}
-
-          canAct={canAct}
-
-        />
-
-        <InternManagerSection
-
-          canAct={canAct}
-
-          initialManagerId={data.managerId}
-
-          initialManager={data.manager}
-
-          initialManagerTeamName={data.managerTeamName}
-
-          initialLatestAssignment={data.latestAssignment}
-
-          initialManagerError={data.managerError}
-
-        />
-
+    <section className="mt-5 flex items-center gap-3 rounded-[12px] bg-accent px-5 py-4 text-white">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-white/15">
+        <TrendingUp className="h-5 w-5" aria-hidden="true" />
       </div>
-
-
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-
-        <DailyReportCard todayReport={data.todayReport} canAct={canAct} />
-
-        <ScheduleCard schedule={data.schedule} blocks={data.blocks} />
-
-        {hasManager ? (
-
-          <MeetingRequestCard
-            userId={profile.id}
-            managerId={data.managerId}
-            manager={data.manager}
-            projects={data.managerProjects}
-            meetings={data.meetings}
-            canAct={canAct}
-          />
-
-        ) : (
-
-          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border bg-white p-6 text-center">
-
-            <div>
-
-              <p className="text-sm font-medium text-ink">Meeting requests</p>
-
-              <p className="mt-1 text-xs text-muted">
-
-                Available after a project manager accepts your assignment
-
-                request.
-
-              </p>
-
-            </div>
-
-          </div>
-
-        )}
-
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+          Quick reminder
+        </p>
+        <p className="text-sm font-medium sm:text-base">{message}</p>
       </div>
-
-
-
-      <div className="grid gap-4 lg:grid-cols-2">
-
-        <ProgressCard tasks={data.tasks} />
-
-        <ProjectTimelineCard timeline={data.timeline} />
-
-      </div>
-
-    </div>
-
+    </section>
   );
-
 }
 
+export async function InternDashboard({ profile }: { profile: Profile }) {
+  const data = await getInternDashboardPageData(profile.id);
+  const hasManager = Boolean(profile.manager_id || data.manager);
+
+  return (
+    <div>
+      {data.errors.length > 0 && <DashboardErrorState messages={data.errors} />}
+
+      <DashboardGreeting
+        profile={profile}
+        activeProject={data.activeProject}
+        activeProjectLoadState={data.activeProjectLoadState}
+      />
+      <CurrentGoalBanner currentGoal={data.currentGoal} />
+
+      <DashboardStatsGrid>
+        <DashboardStatCard
+          icon={CheckCircle2}
+          label="Tasks Today"
+          value={`${data.tasksDone}/${data.tasksTotal}`}
+          description="Completed"
+        />
+        <DashboardStatCard
+          icon={Clock3}
+          label="Attendance"
+          value={data.attendanceLabel}
+          description={data.attendanceDescription}
+        />
+        <DashboardStatCard
+          icon={FileText}
+          label="Report"
+          value={data.reportLabel}
+          description={data.reportDescription}
+        />
+        <DashboardStatCard
+          icon={CalendarDays}
+          label="Meetings"
+          value={String(data.todayMeetings.length)}
+          description={data.meetingsDescription}
+        />
+      </DashboardStatsGrid>
+
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <TodaysMeetingsCard meetings={data.todayMeetings} />
+        <TasksTodayCard
+          title="My Tasks Today"
+          emptyDescription="Tasks assigned to you for today will appear here."
+          strikeCompletedTitles
+          tasks={data.todayTasks.map((task) => ({
+            id: task.id,
+            title: task.title,
+            status: task.status,
+          }))}
+        />
+        <InternshipTimelineCard
+          weeks={data.timelineWeeks}
+          moreWeeks={data.moreTimelineWeeks}
+        />
+      </section>
+
+      <QuickReminder message={data.reminderMessage} />
+
+      {!hasManager && (
+        <div className="mt-5">
+          <InternManagerSection
+            canAct={profile.status === "active"}
+            initialManagerId={null}
+            initialManager={null}
+            initialManagerTeamName={null}
+            initialLatestAssignment={null}
+            initialManagerError={null}
+          />
+        </div>
+      )}
+    </div>
+  );
+}

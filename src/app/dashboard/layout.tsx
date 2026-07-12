@@ -12,10 +12,10 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const { profile } = data;
-
-  if (!profile) {
-    redirect("/login");
+  if (!data.profile) {
+    // Do not sign out here — that fights the browser session and can white-screen.
+    // Middleware allows /login when a session exists without a profile.
+    redirect("/login?error=missing_profile");
   }
 
   return <>{children}</>;

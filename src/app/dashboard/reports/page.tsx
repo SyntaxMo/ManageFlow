@@ -8,7 +8,12 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ProjectManagerShell } from "@/components/layout/ProjectManagerShell";
+import { InternShell } from "@/components/layout/InternShell";
 import { PmDailyReportsView } from "@/components/dashboard/manager/pm-reports/PmDailyReportsView";
+import {
+  InternDailyReportsView,
+  loadInternDailyReportsPage,
+} from "@/components/dashboard/intern/InternDailyReportsView";
 import { Badge } from "@/components/ui/Badge";
 import {
   Card,
@@ -83,16 +88,22 @@ export default async function ReportsPage({
     );
   }
 
+  if (role === "intern") {
+    const reportsPage = await loadInternDailyReportsPage(profileWithTeam);
+    return (
+      <InternShell profile={profileWithTeam}>
+        <InternDailyReportsView
+          profile={profileWithTeam}
+          todayReport={reportsPage.todayReport}
+          teamRows={reportsPage.teamRows}
+        />
+      </InternShell>
+    );
+  }
+
   let reports: DailyReport[] = [];
 
-  if (role === "intern") {
-    const { data: rows } = await supabase
-      .from("daily_reports")
-      .select("*")
-      .eq("user_id", profile.id)
-      .order("report_date", { ascending: false });
-    reports = (rows ?? []) as DailyReport[];
-  } else if (canViewAdminPanel(role)) {
+  if (canViewAdminPanel(role)) {
     const { data: rows } = await supabase
       .from("daily_reports")
       .select("*, profiles(full_name, email)")
@@ -154,9 +165,7 @@ export default async function ReportsPage({
           ) : (
             <DataTable>
               <DataTableHead>
-                {role !== "intern" && (
-                  <DataTableHeaderCell>Member</DataTableHeaderCell>
-                )}
+                <DataTableHeaderCell>Member</DataTableHeaderCell>
                 <DataTableHeaderCell>Date</DataTableHeaderCell>
                 <DataTableHeaderCell>Work Mode</DataTableHeaderCell>
                 <DataTableHeaderCell>Hours</DataTableHeaderCell>
@@ -165,11 +174,9 @@ export default async function ReportsPage({
               <DataTableBody>
                 {reports.map((report) => (
                   <DataTableRow key={report.id}>
-                    {role !== "intern" && (
-                      <DataTableCell>
-                        {report.profiles?.full_name ?? report.user_id}
-                      </DataTableCell>
-                    )}
+                    <DataTableCell>
+                      {report.profiles?.full_name ?? report.user_id}
+                    </DataTableCell>
                     <DataTableCell>{formatDate(report.report_date)}</DataTableCell>
                     <DataTableCell>{report.work_mode ?? "—"}</DataTableCell>
                     <DataTableCell>

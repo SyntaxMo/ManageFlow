@@ -27,6 +27,10 @@ async function TeamMemberDetailContent({
       today={detail.today}
       attendanceLoadState={detail.attendanceLoadState}
       tasksLoadState={detail.tasksLoadState}
+      schedule={detail.schedule}
+      scheduleBlocks={detail.scheduleBlocks}
+      assignedProjects={detail.assignedProjects}
+      availableProjects={detail.availableProjects}
     />
   );
 }

@@ -21,7 +21,7 @@ export function UpcomingMeetingsPanel({
 
       {meetings.length === 0 ? (
         <div className="rounded-[10px] border border-dashed border-border bg-background px-4 py-8 text-center">
-          <p className="text-sm font-medium text-ink">No upcoming meetings</p>
+          <p className="text-sm font-medium text-ink">No meetings yet</p>
           <p className="mt-1 text-xs text-muted">
             Future meetings will appear here after today.
           </p>

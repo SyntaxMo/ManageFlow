@@ -32,30 +32,32 @@ export function getPmInternAttendanceStatusForDate(input: {
   today: string;
   dateBlock: WorkScheduleBlock | null;
   checkIn: CheckIn | null;
+  hasSubmittedReport?: boolean;
   referenceNow?: Date;
 }): PmInternAttendanceStatus {
-  const { selectedDate, today, dateBlock, checkIn } = input;
+  const {
+    selectedDate,
+    today,
+    dateBlock,
+    checkIn,
+    hasSubmittedReport = false,
+  } = input;
   const referenceNow = input.referenceNow ?? new Date();
 
   if (!dateBlock) {
     return "not_scheduled";
   }
 
-  if (checkIn) {
-    if (checkIn.status === "absent") return "absent";
-    if (checkIn.status === "late") return "late";
-    if (checkIn.status === "completed") return "completed";
-    if (checkIn.status === "checked_in") return "checked_in";
-    if (checkIn.status === "missed_checkout") return "checked_in";
-  }
-
+  // Past scheduled days require both check-in and a submitted report.
   if (selectedDate < today) {
-    return checkIn ? getPmInternAttendanceStatus({
-      scheduledToday: true,
-      todayBlock: dateBlock,
-      checkIn,
-      now: referenceNow,
-    }) : "absent";
+    const checkedIn =
+      Boolean(checkIn?.checked_in_at) && checkIn?.status !== "absent";
+    if (!checkedIn || !hasSubmittedReport) {
+      return "absent";
+    }
+    if (checkIn?.status === "late") return "late";
+    if (checkIn?.status === "completed") return "completed";
+    return "checked_in";
   }
 
   if (selectedDate > today) {
@@ -66,6 +68,7 @@ export function getPmInternAttendanceStatusForDate(input: {
     scheduledToday: true,
     todayBlock: dateBlock,
     checkIn,
+    hasSubmittedReport,
     now: referenceNow,
   });
 }
@@ -140,9 +143,17 @@ export function calculateAbsenceStats(input: {
   today: string;
   blocks: WorkScheduleBlock[];
   checkInsByDate: Map<string, CheckIn>;
+  reportsByDate?: Map<string, boolean>;
   referenceNow?: Date;
 }): { percentage: number; absentDays: number } | null {
-  const { periodStart, selectedDate, today, blocks, checkInsByDate } = input;
+  const {
+    periodStart,
+    selectedDate,
+    today,
+    blocks,
+    checkInsByDate,
+    reportsByDate,
+  } = input;
 
   if (blocks.length === 0) {
     return null;
@@ -167,6 +178,7 @@ export function calculateAbsenceStats(input: {
         today,
         dateBlock: block,
         checkIn: checkInsByDate.get(current) ?? null,
+        hasSubmittedReport: reportsByDate?.get(current) === true,
         referenceNow: input.referenceNow,
       });
 
@@ -194,6 +206,7 @@ export function calculateAbsencePercentage(input: {
   today: string;
   blocks: WorkScheduleBlock[];
   checkInsByDate: Map<string, CheckIn>;
+  reportsByDate?: Map<string, boolean>;
   referenceNow?: Date;
 }): number | null {
   return calculateAbsenceStats(input)?.percentage ?? null;

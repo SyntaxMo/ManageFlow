@@ -154,6 +154,7 @@ export async function getPmAttendancePageData(
     checkInsRes,
     historicalCheckInsRes,
     reportsRes,
+    historicalReportsRes,
     schedulesRes,
   ] = await Promise.all([
     supabase
@@ -173,6 +174,12 @@ export async function getPmAttendancePageData(
       .in("user_id", memberIds)
       .eq("report_date", selectedDate),
     supabase
+      .from("daily_reports")
+      .select("user_id, report_date, review_status")
+      .in("user_id", memberIds)
+      .gte("report_date", earliestPeriodStart)
+      .lte("report_date", selectedDate),
+    supabase
       .from("work_schedules")
       .select("id, user_id, status")
       .in("user_id", memberIds)
@@ -189,7 +196,7 @@ export async function getPmAttendancePageData(
     console.error("Failed to load check-ins:", checkInsRes.error?.message);
   }
 
-  if (reportsRes.error) {
+  if (reportsRes.error || historicalReportsRes.error) {
     reportsLoadState = "error";
     errors.push("We could not load daily reports.");
     console.error("Failed to load reports:", reportsRes.error?.message);
@@ -211,6 +218,8 @@ export async function getPmAttendancePageData(
       : [];
   const reports =
     reportsLoadState === "loaded" ? ((reportsRes.data ?? []) as DailyReport[]) : [];
+  const historicalReports =
+    reportsLoadState === "loaded" ? (historicalReportsRes.data ?? []) : [];
 
   const scheduleIds = (schedulesRes.data ?? []).map(
     (schedule: { id: string }) => schedule.id
@@ -243,12 +252,19 @@ export async function getPmAttendancePageData(
     const checkIn =
       selectedDateCheckIns.find((row) => row.user_id === member.id) ?? null;
     const report = reports.find((row) => row.user_id === member.id) ?? null;
+    const hasSubmittedReport =
+      reportsLoadState === "loaded"
+        ? report
+          ? isReportSubmitted(report.review_status)
+          : false
+        : null;
 
     const attendanceStatus = getPmInternAttendanceStatusForDate({
       selectedDate,
       today,
       dateBlock,
       checkIn,
+      hasSubmittedReport: hasSubmittedReport === true,
     });
     const attendanceLabel = mapPmAttendanceDisplayLabel(attendanceStatus);
 
@@ -258,23 +274,27 @@ export async function getPmAttendancePageData(
     const checkInsByDate = new Map(
       memberHistorical.map((row) => [row.check_in_date, row])
     );
+    const reportsByDate = new Map(
+      historicalReports
+        .filter((row) => row.user_id === member.id)
+        .map((row) => [
+          row.report_date as string,
+          isReportSubmitted(row.review_status as string),
+        ])
+    );
 
     const absencePercentage =
-      schedulesLoadState === "loaded" && checkInsLoadState === "loaded"
+      schedulesLoadState === "loaded" &&
+      checkInsLoadState === "loaded" &&
+      reportsLoadState === "loaded"
         ? calculateAbsencePercentage({
             periodStart: periodStarts.get(member.id) ?? selectedDate,
             selectedDate,
             today,
             blocks: memberBlocks,
             checkInsByDate,
+            reportsByDate,
           })
-        : null;
-
-    const hasSubmittedReport =
-      reportsLoadState === "loaded"
-        ? report
-          ? isReportSubmitted(report.review_status)
-          : false
         : null;
 
     return {
