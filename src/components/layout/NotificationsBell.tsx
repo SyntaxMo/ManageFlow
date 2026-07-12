@@ -12,7 +12,13 @@ import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/db/status";
 
-export function NotificationsBell() {
+interface NotificationsBellProps {
+  badgeClassName?: string;
+}
+
+export function NotificationsBell({
+  badgeClassName,
+}: NotificationsBellProps = {}) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,7 +81,12 @@ export function NotificationsBell() {
       >
         <Bell className="h-5 w-5" />
         {notifications.length > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
+          <span
+            className={cn(
+              "absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white",
+              badgeClassName ?? "bg-primary"
+            )}
+          >
             {notifications.length}
           </span>
         )}

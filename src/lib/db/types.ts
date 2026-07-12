@@ -26,6 +26,12 @@ export type TaskStatus =
   | "blocked"
   | "delayed";
 
+export type TaskApprovalStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "not_required";
+
 export type Profile = {
   id: string;
   full_name: string;
@@ -189,7 +195,9 @@ export type Task = {
   description: string | null;
   assigned_to: string | null;
   project_id: string | null;
+  team_id: string | null;
   status: string;
+  approval_status: TaskApprovalStatus | string | null;
   due_date: string | null;
   progress: number | null;
 };
@@ -203,6 +211,7 @@ export type Project = {
   status: string;
   priority: string;
   progress: number;
+  start_date: string | null;
   deadline: string | null;
   profiles?: { full_name: string } | null;
 };
@@ -217,12 +226,71 @@ export type ProjectTimelineItem = {
   projects?: { name: string } | null;
 };
 
+export type Meeting = {
+  id: string;
+  title: string;
+  description: string | null;
+  agenda: string | null;
+  scheduled_date: string;
+  start_time: string;
+  end_time: string;
+  location: string | null;
+  meeting_link: string | null;
+  project_id: string | null;
+  team_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MeetingAttendee = {
+  id: string;
+  meeting_id: string;
+  user_id: string;
+  profiles?: Pick<Profile, "full_name" | "email"> | null;
+};
+
 export type Template = {
   id: string;
   name: string;
   type: string;
   is_default: boolean;
   content: Record<string, unknown> | null;
+};
+
+export type WeeklySummaryStatus = "draft" | "submitted" | "reviewed" | "approved";
+
+export type WeeklyOverallStatus =
+  | "on_track"
+  | "slightly_delayed"
+  | "delayed"
+  | "blocked";
+
+export type WeeklySummary = {
+  id: string;
+  project_id: string;
+  team_id: string;
+  project_manager_id: string;
+  template_id: string | null;
+  week_number: number;
+  week_start: string;
+  week_end: string;
+  goal: string | null;
+  status: WeeklySummaryStatus;
+  overall_status: WeeklyOverallStatus | null;
+  form_data: Record<string, unknown>;
+  submitted_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TemplateSectionField = {
+  id: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  placeholder?: string;
+  options?: string[];
 };
 
 export const DAY_LABELS = [

@@ -7,6 +7,8 @@ import {
 } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ProjectManagerShell } from "@/components/layout/ProjectManagerShell";
+import { PmDailyReportsView } from "@/components/dashboard/manager/pm-reports/PmDailyReportsView";
 import { Badge } from "@/components/ui/Badge";
 import {
   Card,
@@ -24,14 +26,23 @@ import {
   DataTableRow,
 } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
-import type { DailyReport } from "@/lib/db/types";
+import type { DailyReport, Profile as DbProfile } from "@/lib/db/types";
 import {
   formatDate,
   formatLabel,
+  getLocalDateString,
   getReviewStatusBadge,
 } from "@/lib/db/status";
+import {
+  getPmDailyReportsData,
+  isValidReportDate,
+} from "@/lib/data/pm-daily-reports";
 
-export default async function ReportsPage() {
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
   const data = await getUserProfile();
 
   if (!data?.profile) {
@@ -41,6 +52,36 @@ export default async function ReportsPage() {
   const { profile } = data;
   const role = profile.role as UserRole;
   const supabase = await createClient();
+  const params = await searchParams;
+
+  let profileWithTeam = profile as DbProfile;
+  if (profile.team_id) {
+    const { data: team } = await supabase
+      .from("teams")
+      .select("name")
+      .eq("id", profile.team_id)
+      .maybeSingle();
+    profileWithTeam = { ...(profile as DbProfile), teams: team };
+  }
+
+  if (role === "project_manager") {
+    if (!canReviewReports(role)) {
+      redirect("/dashboard");
+    }
+
+    const selectedDate =
+      params.date && isValidReportDate(params.date)
+        ? params.date
+        : getLocalDateString();
+
+    const reportsData = await getPmDailyReportsData(profile.id, selectedDate);
+
+    return (
+      <ProjectManagerShell profile={profileWithTeam}>
+        <PmDailyReportsView data={reportsData} />
+      </ProjectManagerShell>
+    );
+  }
 
   let reports: DailyReport[] = [];
 
@@ -61,13 +102,7 @@ export default async function ReportsPage() {
   } else if (canReviewReports(role)) {
     let memberIds: string[] = [];
 
-    if (role === "project_manager") {
-      const { data: members } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("manager_id", profile.id);
-      memberIds = (members ?? []).map((m: { id: string }) => m.id);
-    } else if (role === "team_lead") {
+    if (role === "team_lead") {
       const { data: pms } = await supabase
         .from("profiles")
         .select("id")

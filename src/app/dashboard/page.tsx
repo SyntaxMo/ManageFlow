@@ -1,13 +1,16 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getUserProfile } from "@/lib/auth/get-user-profile";
 import type { UserRole } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ProjectManagerShell } from "@/components/layout/ProjectManagerShell";
 import { AccountStatusBanner } from "@/components/dashboard/AccountStatusBanner";
 import { AdminStats } from "@/components/dashboard/admin/AdminStats";
 import { InternDashboard } from "@/components/dashboard/views/InternDashboard";
 import { ProjectManagerDashboard } from "@/components/dashboard/views/ProjectManagerDashboard";
 import { TeamLeadDashboard } from "@/components/dashboard/views/TeamLeadDashboard";
+import { DashboardSkeleton } from "@/components/dashboard/manager/pm-dashboard/DashboardSkeleton";
 import { getAdminDashboardCounts } from "@/lib/data/dashboard";
 import type { Profile as DbProfile } from "@/lib/db/types";
 
@@ -33,6 +36,17 @@ export default async function DashboardPage() {
     profileWithTeam = { ...(profile as DbProfile), teams: team };
   }
 
+  if (role === "project_manager") {
+    return (
+      <ProjectManagerShell profile={profileWithTeam}>
+        <AccountStatusBanner status={profile.status} />
+        <Suspense fallback={<DashboardSkeleton />}>
+          <ProjectManagerDashboard profile={profileWithTeam} />
+        </Suspense>
+      </ProjectManagerShell>
+    );
+  }
+
   return (
     <DashboardShell
       fullName={profile.full_name}
@@ -49,13 +63,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {role === "intern" && (
-        <InternDashboard profile={profileWithTeam} />
-      )}
-
-      {role === "project_manager" && (
-        <ProjectManagerDashboard profile={profileWithTeam} />
-      )}
+      {role === "intern" && <InternDashboard profile={profileWithTeam} />}
 
       {role === "team_lead" && (
         <TeamLeadDashboard profile={profileWithTeam} />

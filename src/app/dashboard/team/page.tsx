@@ -1,20 +1,19 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getUserProfile } from "@/lib/auth/get-user-profile";
-import type { UserRole } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardShell } from "@/components/layout/DashboardShell";
-import { EmptyState } from "@/components/ui/EmptyState";
-import {
-  DataTable,
-  DataTableBody,
-  DataTableCell,
-  DataTableHead,
-  DataTableHeaderCell,
-  DataTableRow,
-} from "@/components/ui/Table";
-import type { Profile } from "@/lib/db/types";
+import { ProjectManagerShell } from "@/components/layout/ProjectManagerShell";
+import { PmTeamMembersView } from "@/components/dashboard/manager/pm-team-members/PmTeamMembersView";
+import { PmTeamMembersSkeleton } from "@/components/dashboard/manager/pm-team-members/PmTeamMembersSkeleton";
+import { getPmTeamMembersPageData } from "@/lib/data/pm-team-members";
+import type { Profile as DbProfile } from "@/lib/db/types";
 
-export default async function TeamPage() {
+async function TeamMembersContent({ managerId }: { managerId: string }) {
+  const pageData = await getPmTeamMembersPageData(managerId);
+  return <PmTeamMembersView data={pageData} />;
+}
+
+export default async function TeamMembersPage() {
   const data = await getUserProfile();
 
   if (!data?.profile) {
@@ -22,60 +21,31 @@ export default async function TeamPage() {
   }
 
   const { profile } = data;
-  const role = profile.role as UserRole;
 
-  if (role !== "project_manager") {
+  if (profile.role !== "project_manager") {
     redirect("/dashboard");
   }
 
   const supabase = await createClient();
-  const { data: members, error } = await supabase
-    .from("profiles")
-    .select("id, full_name, email, role, job_title, status, team_id, manager_id")
-    .eq("manager_id", profile.id)
-    .order("full_name", { ascending: true });
+  let profileWithTeam = profile as DbProfile;
 
-  if (error) {
-    console.error("Failed to load team members:", error.message);
+  if (profile.team_id) {
+    const { data: team } = await supabase
+      .from("teams")
+      .select("name")
+      .eq("id", profile.team_id)
+      .maybeSingle();
+    profileWithTeam = { ...(profile as DbProfile), teams: team };
   }
 
-  const memberList = (members ?? []) as Profile[];
-
   return (
-    <DashboardShell
-      fullName={profile.full_name}
-      role={role}
-      status={profile.status}
-      title="Team"
-      subtitle="Members on your team"
+    <ProjectManagerShell
+      profile={profileWithTeam}
+      contentMaxWidthClass="max-w-[1240px]"
     >
-      {memberList.length === 0 ? (
-        <EmptyState
-          title="No team members found"
-          description="Accepted team members assigned to you will appear here."
-        />
-      ) : (
-        <DataTable>
-          <DataTableHead>
-            <DataTableHeaderCell>Name</DataTableHeaderCell>
-            <DataTableHeaderCell>Email</DataTableHeaderCell>
-            <DataTableHeaderCell>Role</DataTableHeaderCell>
-            <DataTableHeaderCell>Status</DataTableHeaderCell>
-          </DataTableHead>
-          <DataTableBody>
-            {memberList.map((member) => (
-              <DataTableRow key={member.id}>
-                <DataTableCell>{member.full_name}</DataTableCell>
-                <DataTableCell>{member.email}</DataTableCell>
-                <DataTableCell className="capitalize">
-                  {member.role.replace(/_/g, " ")}
-                </DataTableCell>
-                <DataTableCell className="capitalize">{member.status}</DataTableCell>
-              </DataTableRow>
-            ))}
-          </DataTableBody>
-        </DataTable>
-      )}
-    </DashboardShell>
+      <Suspense fallback={<PmTeamMembersSkeleton />}>
+        <TeamMembersContent managerId={profile.id} />
+      </Suspense>
+    </ProjectManagerShell>
   );
 }

@@ -266,14 +266,20 @@ on projects for select to authenticated
 using (team_lead_id = auth.uid());
 
 drop policy if exists "Project members can read projects" on project_members;
-create policy "Project members can read projects"
+drop policy if exists "Managers and team leads can read managed intern memberships" on project_members;
+create policy "Managers and team leads can read managed intern memberships"
 on project_members for select to authenticated
 using (
-  user_id = auth.uid()
+  exists (
+    select 1 from profiles member_profile
+    where member_profile.id = project_members.user_id
+      and member_profile.manager_id = auth.uid()
+  )
   or exists (
-    select 1 from projects pr
-    where pr.id = project_members.project_id
-    and (pr.team_lead_id = auth.uid() or pr.manager_id = auth.uid())
+    select 1 from profiles member_profile
+    inner join profiles pm_profile on pm_profile.id = member_profile.manager_id
+    where member_profile.id = project_members.user_id
+      and pm_profile.manager_id = auth.uid()
   )
 );
 
@@ -283,8 +289,8 @@ on projects for select to authenticated
 using (
   exists (
     select 1 from project_members pm
-    join profiles p on p.id = pm.user_id
+    inner join profiles member_profile on member_profile.id = pm.user_id
     where pm.project_id = projects.id
-    and p.manager_id = auth.uid()
+      and member_profile.manager_id = auth.uid()
   )
 );
