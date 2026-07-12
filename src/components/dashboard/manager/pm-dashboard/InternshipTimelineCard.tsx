@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { GitBranch } from "lucide-react";
 import type { PmTimelineWeek } from "@/lib/data/pm-dashboard";
 import { cn } from "@/lib/utils";
@@ -7,14 +8,16 @@ import { DashboardEmptyState } from "./DashboardEmptyState";
 interface InternshipTimelineCardProps {
   weeks: PmTimelineWeek[];
   moreWeeks: number;
+  href?: string | null;
 }
 
 export function InternshipTimelineCard({
   weeks,
   moreWeeks,
+  href = null,
 }: InternshipTimelineCardProps) {
-  return (
-    <DashboardPanel className="min-h-[300px]" title="Internship Timeline">
+  const content = (
+    <>
       {weeks.length === 0 ? (
         <DashboardEmptyState
           icon={<GitBranch className="h-5 w-5" aria-hidden="true" />}
@@ -29,12 +32,9 @@ export function InternshipTimelineCard({
                 <div
                   className={cn(
                     "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-                    week.state === "current" &&
-                      "bg-deep text-white",
-                    week.state === "completed" &&
-                      "bg-background text-muted",
-                    week.state === "upcoming" &&
-                      "bg-background text-muted/70"
+                    week.state === "current" && "bg-deep text-white",
+                    week.state === "completed" && "bg-background text-muted",
+                    week.state === "upcoming" && "bg-background text-muted/70"
                   )}
                 >
                   {week.weekNumber}
@@ -65,6 +65,22 @@ export function InternshipTimelineCard({
             <p className="mt-4 text-xs text-muted">+ {moreWeeks} more weeks</p>
           )}
         </>
+      )}
+    </>
+  );
+
+  return (
+    <DashboardPanel className="min-h-[300px]" title="Internship Timeline">
+      {href ? (
+        <Link
+          href={href}
+          className="block rounded-[10px] transition-colors hover:bg-background/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          aria-label="Open full internship schedule and timeline"
+        >
+          {content}
+        </Link>
+      ) : (
+        content
       )}
     </DashboardPanel>
   );

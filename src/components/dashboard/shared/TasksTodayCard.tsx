@@ -3,12 +3,19 @@ import { CheckCircle2, Clock3, ListTodo } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { DashboardPanel } from "@/components/dashboard/manager/pm-dashboard/DashboardPanel";
 import { DashboardEmptyState } from "@/components/dashboard/manager/pm-dashboard/DashboardEmptyState";
+import {
+  getApprovalStatusBadgeClass,
+  getApprovalStatusLabel,
+} from "@/lib/task-sheet/task-sheet";
 
 export type TasksTodayItem = {
   id: string;
   title: string;
   status: string;
+  approvalStatus?: string | null;
+  dueDate?: string | null;
   subtitle?: string | null;
+  href?: string;
 };
 
 interface TasksTodayCardProps {
@@ -56,11 +63,22 @@ export function TasksTodayCard({
         <ul className="space-y-3">
           {tasks.map((task) => {
             const statusMeta = getTaskStatusMeta(task.status);
+            const taskHref = task.href ?? href;
+            const subtitle =
+              task.subtitle ??
+              [
+                task.approvalStatus
+                  ? getApprovalStatusLabel(task.approvalStatus)
+                  : null,
+                task.dueDate ? `Due ${task.dueDate}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ");
 
             return (
               <li key={task.id}>
                 <Link
-                  href={href}
+                  href={taskHref}
                   className="flex items-start gap-3 rounded-[10px] p-1 transition-colors hover:bg-background"
                 >
                   {statusMeta.done ? (
@@ -84,13 +102,22 @@ export function TasksTodayCard({
                     >
                       {task.title}
                     </p>
-                    {task.subtitle ? (
-                      <p className="mt-0.5 text-xs text-muted">{task.subtitle}</p>
+                    {subtitle ? (
+                      <p className="mt-0.5 text-xs text-muted">{subtitle}</p>
                     ) : null}
                   </div>
-                  <Badge variant={statusMeta.variant} className="shrink-0">
-                    {statusMeta.label}
-                  </Badge>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Badge variant={statusMeta.variant} className="shrink-0">
+                      {statusMeta.label}
+                    </Badge>
+                    {task.approvalStatus ? (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${getApprovalStatusBadgeClass(task.approvalStatus)}`}
+                      >
+                        {getApprovalStatusLabel(task.approvalStatus)}
+                      </span>
+                    ) : null}
+                  </div>
                 </Link>
               </li>
             );

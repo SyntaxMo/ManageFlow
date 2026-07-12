@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import type { DailyReport, Profile } from "@/lib/db/types";
+import type { DailyReport, Profile, ReportFile } from "@/lib/db/types";
+import { DAILY_REPORT_FILE_CATEGORY } from "@/lib/reports/constants";
 
 export type PmInternReportRow = {
   intern: Profile;
   report: DailyReport | null;
+  file: ReportFile | null;
   status: "submitted" | "pending";
 };
 
@@ -75,6 +77,7 @@ export async function getPmDailyReportsData(
       rows: internList.map((intern) => ({
         intern,
         report: null,
+        file: null,
         status: "pending" as const,
       })),
       stats: {
@@ -90,11 +93,35 @@ export async function getPmDailyReportsData(
     ((reportRows ?? []) as DailyReport[]).map((report) => [report.user_id, report])
   );
 
+  const reportIds = ((reportRows ?? []) as DailyReport[]).map((report) => report.id);
+  const filesByReportId = new Map<string, ReportFile>();
+
+  if (reportIds.length > 0) {
+    const { data: fileRows, error: filesError } = await supabase
+      .from("files")
+      .select("*")
+      .in("report_id", reportIds)
+      .eq("file_category", DAILY_REPORT_FILE_CATEGORY);
+
+    if (filesError) {
+      console.error("Failed to load daily report files:", filesError.message);
+      errors.push("Failed to load uploaded report files.");
+    } else {
+      for (const file of (fileRows ?? []) as ReportFile[]) {
+        if (file.report_id) {
+          filesByReportId.set(file.report_id, file);
+        }
+      }
+    }
+  }
+
   const rows: PmInternReportRow[] = internList.map((intern) => {
     const report = reportsByUserId.get(intern.id) ?? null;
+    const file = report ? filesByReportId.get(report.id) ?? null : null;
     return {
       intern,
       report,
+      file,
       status: report ? "submitted" : "pending",
     };
   });

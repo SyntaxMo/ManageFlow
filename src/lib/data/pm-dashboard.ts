@@ -10,12 +10,13 @@ import type {
 } from "@/lib/db/types";
 import { getLocalDateString, getLocalDayOfWeek } from "@/lib/db/status";
 import { getPmInternAttendanceStatus } from "@/lib/attendance";
+import { daysBetween, mapAttendanceStatus, mapReportStatus } from "@/lib/dashboard/helpers";
 import {
-  daysBetween,
-  getWeekNumberFromStart,
-  mapAttendanceStatus,
-  mapReportStatus,
-} from "@/lib/dashboard/helpers";
+  buildInternshipTimeline,
+  buildTimelinePreview,
+  getCurrentTimelineWeek,
+} from "@/lib/timeline/internship-timeline";
+import { isTaskApproved } from "@/lib/task-sheet/task-sheet";
 
 export type PmCurrentGoal = {
   weekNumber: number;
@@ -76,24 +77,17 @@ export function buildCurrentGoal(
   milestones: ProjectTimelineItem[],
   today: string
 ): PmCurrentGoal | null {
-  if (!project) return null;
-
-  const sorted = [...milestones].sort((a, b) => a.date.localeCompare(b.date));
-  if (sorted.length === 0) return null;
-
-  const weekNumber = project.start_date
-    ? getWeekNumberFromStart(project.start_date, today)
-    : 1;
-
-  const activeMilestone =
-    sorted.find((item) => item.date >= today) ?? sorted[sorted.length - 1];
-
-  const daysLeft = Math.max(0, daysBetween(today, activeMilestone.date));
+  const timeline = buildInternshipTimeline(project, milestones, today);
+  const currentWeek = getCurrentTimelineWeek(timeline);
+  if (!currentWeek) return null;
 
   return {
-    weekNumber,
-    title: activeMilestone.title,
-    daysLeft,
+    weekNumber: currentWeek.weekNumber,
+    title:
+      currentWeek.mainTasks?.trim() ||
+      currentWeek.expectedDeliverables?.trim() ||
+      currentWeek.phase,
+    daysLeft: Math.max(0, daysBetween(today, currentWeek.weekEnd)),
   };
 }
 
@@ -102,36 +96,15 @@ export function buildTimelineWeeks(
   milestones: ProjectTimelineItem[],
   today: string
 ): { weeks: PmTimelineWeek[]; moreWeeks: number } {
-  if (!project) {
-    return { weeks: [], moreWeeks: 0 };
-  }
-
-  const sorted = [...milestones].sort((a, b) => a.date.localeCompare(b.date));
-  const currentWeekNumber = project.start_date
-    ? getWeekNumberFromStart(project.start_date, today)
-    : 1;
-
-  const totalWeeks = Math.max(sorted.length, currentWeekNumber, 1);
-  const displayCount = Math.min(6, totalWeeks);
-
-  const weeks: PmTimelineWeek[] = [];
-  for (let index = 0; index < displayCount; index += 1) {
-    const weekNumber = index + 1;
-    const title = sorted[index]?.title ?? `Week ${weekNumber}`;
-    let state: PmTimelineWeek["state"] = "upcoming";
-
-    if (weekNumber < currentWeekNumber) {
-      state = "completed";
-    } else if (weekNumber === currentWeekNumber) {
-      state = "current";
-    }
-
-    weeks.push({ weekNumber, title, state });
-  }
-
+  const timeline = buildInternshipTimeline(project, milestones, today);
+  const preview = buildTimelinePreview(timeline);
   return {
-    weeks,
-    moreWeeks: Math.max(0, totalWeeks - displayCount),
+    weeks: preview.weeks.map((week) => ({
+      weekNumber: week.weekNumber,
+      title: week.phase,
+      state: week.state,
+    })),
+    moreWeeks: preview.moreWeeks,
   };
 }
 
@@ -362,7 +335,7 @@ export async function getPmDashboardPageData(
     (stat) => stat.attendanceLabel === "Present"
   ).length;
 
-  const tasksApproved = tasksToday.filter((task) => task.status === "done").length;
+  const tasksApproved = tasksToday.filter((task) => isTaskApproved(task)).length;
 
   const memberNameById = new Map(
     members.map((member) => [member.id, member.full_name])

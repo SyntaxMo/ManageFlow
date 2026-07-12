@@ -58,7 +58,7 @@ export function DailyReportCard({
               Not submitted. You have not submitted today&apos;s daily report yet.
             </p>
             {canAct ? (
-              <Link href="/dashboard/reports/new">
+              <Link href="/dashboard/reports">
                 <Button>Submit Daily Report</Button>
               </Link>
             ) : (

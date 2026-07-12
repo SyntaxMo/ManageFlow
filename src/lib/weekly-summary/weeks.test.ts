@@ -8,25 +8,24 @@ import {
 import { parseTemplateSections } from "@/lib/weekly-summary/template";
 import { weekQuerySchema } from "@/lib/weekly-summary/validation";
 
-describe("calculateProjectWeeks", () => {
-  it("creates consecutive weekly ranges until the deadline", () => {
-    const weeks = calculateProjectWeeks("2026-07-01", "2026-07-20");
-    expect(weeks).toHaveLength(3);
+describe("calculateProjectWeeks", () => {  it("creates Week 0 through Week 8 from the project start date", () => {
+    const weeks = calculateProjectWeeks("2026-07-01", "2026-09-01");
+    expect(weeks).toHaveLength(9);
     expect(weeks[0]).toEqual({
-      weekNumber: 1,
+      weekNumber: 0,
       weekStart: "2026-07-01",
       weekEnd: "2026-07-07",
     });
-    expect(weeks[2]?.weekEnd).toBe("2026-07-20");
+    expect(weeks[8]?.weekNumber).toBe(8);
   });
 
-  it("returns an empty list for invalid ranges", () => {
-    expect(calculateProjectWeeks("2026-08-01", "2026-07-01")).toEqual([]);
+  it("returns an empty list without a start date", () => {
+    expect(calculateProjectWeeks("", "2026-07-01")).toEqual([]);
   });
 });
 
 describe("resolveSelectedWeekNumber", () => {
-  const weeks = calculateProjectWeeks("2026-07-01", "2026-07-28");
+  const weeks = calculateProjectWeeks("2026-07-01", "2026-09-01");
 
   it("uses the URL week when valid", () => {
     expect(resolveSelectedWeekNumber(weeks, 2, 4)).toBe(4);
@@ -38,8 +37,8 @@ describe("resolveSelectedWeekNumber", () => {
 });
 
 describe("getCurrentProjectWeekNumber", () => {
-  it("returns week 1 before the project starts", () => {
-    expect(getCurrentProjectWeekNumber("2026-07-20", "2026-07-01")).toBe(1);
+  it("returns Week 0 before the project starts", () => {
+    expect(getCurrentProjectWeekNumber("2026-07-20", "2026-07-01")).toBe(0);
   });
 });
 
@@ -91,7 +90,9 @@ describe("parseTemplateSections", () => {
 });
 
 describe("weekQuerySchema", () => {
-  it("accepts positive integer week values", () => {
+  it("accepts internship week values from 0 through 8", () => {
+    expect(weekQuerySchema.parse("0")).toBe(0);
     expect(weekQuerySchema.parse("3")).toBe(3);
+    expect(weekQuerySchema.parse("8")).toBe(8);
   });
 });

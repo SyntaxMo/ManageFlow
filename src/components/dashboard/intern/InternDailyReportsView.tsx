@@ -1,15 +1,27 @@
-import Link from "next/link";
-import { CheckCircle2, Clock3, Download, FileText } from "lucide-react";
-import type { DailyReport, Profile } from "@/lib/db/types";
-import { getLocalDateString, formatTime } from "@/lib/db/status";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  CheckCircle2,
+  Clock3,
+  Download,
+  FileText,
+  RefreshCw,
+} from "lucide-react";
+import type { DailyReport, Profile, ReportFile } from "@/lib/db/types";
+import { getLocalDateString, formatDate, formatTime } from "@/lib/db/status";
 import { getInitials } from "@/lib/dashboard/helpers";
-import { createClient } from "@/lib/supabase/server";
+import { downloadDailyReportDocument } from "@/lib/reports/download-document";
+import { DailyReportTemplateButton } from "@/components/dashboard/intern/DailyReportTemplateButton";
+import { InternDailyReportUploadPanel } from "@/components/dashboard/intern/InternDailyReportUploadPanel";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
 
 interface InternDailyReportsViewProps {
   profile: Profile;
   todayReport: DailyReport | null;
+  todayFile: ReportFile | null;
   teamRows: Array<{
     member: Profile;
     submitted: boolean;
@@ -20,9 +32,64 @@ interface InternDailyReportsViewProps {
 export function InternDailyReportsView({
   profile,
   todayReport,
+  todayFile,
   teamRows,
 }: InternDailyReportsViewProps) {
+  const router = useRouter();
   const today = getLocalDateString();
+  const [toast, setToast] = useState<string | null>(null);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [replaceMode, setReplaceMode] = useState(false);
+  const [downloadLoading, setDownloadLoading] = useState(false);
+
+  const isSubmitted = Boolean(todayReport);
+  const submissionTimestamp =
+    (todayReport as DailyReport & { updated_at?: string })?.updated_at ??
+    todayReport?.created_at;
+
+  useEffect(() => {
+    if (!toast && !errorToast) return;
+    const timer = window.setTimeout(() => {
+      setToast(null);
+      setErrorToast(null);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [toast, errorToast]);
+
+  async function handleDownloadSubmitted() {
+    if (!todayReport?.id || downloadLoading) return;
+
+    setDownloadLoading(true);
+    try {
+      await downloadDailyReportDocument(
+        todayReport.id,
+        todayFile?.file_name ?? "daily-report.docx"
+      );
+    } catch {
+      setErrorToast("Failed to download your submitted report.");
+    } finally {
+      setDownloadLoading(false);
+    }
+  }
+
+  function handleReplaceClick() {
+    const confirmed = window.confirm(
+      "Replace today's submitted report with a new file?"
+    );
+    if (confirmed) {
+      setReplaceMode(true);
+    }
+  }
+
+  function handleUploadSuccess() {
+    setReplaceMode(false);
+    setToast(
+      replaceMode
+        ? "Your daily report was replaced successfully."
+        : "Your daily report was submitted successfully."
+    );
+    router.refresh();
+  }
 
   return (
     <div>
@@ -34,6 +101,24 @@ export function InternDailyReportsView({
           Submit your end-of-day report · {today}
         </p>
       </div>
+
+      {toast && (
+        <div
+          role="status"
+          className="mb-4 rounded-[12px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+        >
+          {toast}
+        </div>
+      )}
+
+      {errorToast && (
+        <div
+          role="alert"
+          className="mb-4 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {errorToast}
+        </div>
+      )}
 
       <section className="mb-4 flex flex-col gap-3 rounded-[12px] border border-border bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-start gap-3">
@@ -47,51 +132,83 @@ export function InternDailyReportsView({
             </p>
           </div>
         </div>
-        <Link
-          href="/dashboard/reports/new"
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-deep px-4 text-sm font-medium text-white transition-colors hover:bg-primary"
-        >
-          <Download className="h-4 w-4" />
-          Open form
-        </Link>
+        <DailyReportTemplateButton onError={setErrorToast} />
       </section>
 
       <section className="mb-4 rounded-[12px] border border-border bg-white px-4 py-8 text-center sm:px-5">
         <p className="text-sm font-semibold text-ink">
-          Today&apos;s Report — {todayReport ? "Submitted ✓" : "Not submitted"}
+          Today&apos;s Report — {isSubmitted ? "Submitted ✓" : "Not submitted"}
         </p>
         <div className="mx-auto mt-5 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
-          {todayReport ? (
+          {isSubmitted ? (
             <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
           ) : (
             <Clock3 className="h-8 w-8" aria-hidden="true" />
           )}
         </div>
-        {todayReport ? (
+
+        {isSubmitted && !replaceMode ? (
           <>
-            <p className="mt-4 text-sm font-semibold text-ink">
-              Report submitted successfully!
-            </p>
+            <div className="mt-4 flex justify-center">
+              <Badge variant="success">Submitted</Badge>
+            </div>
+            {todayFile && (
+              <p className="mt-3 text-sm font-medium text-ink">{todayFile.file_name}</p>
+            )}
             <p className="mt-1 text-xs text-muted">
-              Submitted at {formatTime(todayReport.created_at)}
+              Submitted on {formatDate(today)} at {formatTime(submissionTimestamp ?? null)}
             </p>
+            <p className="mt-3 text-sm text-ink">Report submitted successfully!</p>
+            <div className="mx-auto mt-4 flex max-w-md flex-col gap-2 sm:flex-row sm:justify-center">
+              {todayFile && (
+                <button
+                  type="button"
+                  onClick={handleDownloadSubmitted}
+                  disabled={downloadLoading}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-deep px-4 text-sm font-medium text-white transition-colors hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  {downloadLoading ? "Downloading..." : "Download Submitted Report"}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleReplaceClick}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-border bg-white px-4 text-sm font-medium text-ink transition-colors hover:bg-background"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                Replace Report
+              </button>
+            </div>
           </>
         ) : (
           <>
-            <p className="mt-4 text-sm font-semibold text-ink">
-              No report submitted yet
-            </p>
-            <p className="mt-1 text-xs text-muted">
-              Use the form to submit today&apos;s end-of-day report.
-            </p>
-            <div className="mt-4">
-              <Link
-                href="/dashboard/reports/new"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-deep px-4 text-sm font-medium text-white transition-colors hover:bg-primary"
-              >
-                Submit report
-              </Link>
-            </div>
+            {!replaceMode && (
+              <>
+                <p className="mt-4 text-sm font-semibold text-ink">
+                  No report submitted yet
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  Download and complete the official template, then upload it below.
+                </p>
+              </>
+            )}
+            {replaceMode && (
+              <>
+                <p className="mt-4 text-sm font-semibold text-ink">
+                  Replace today&apos;s report
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  Upload a new completed template file to replace your submission.
+                </p>
+              </>
+            )}
+            <InternDailyReportUploadPanel
+              replaceMode={replaceMode}
+              onCancelReplace={() => setReplaceMode(false)}
+              onSuccess={handleUploadSuccess}
+              onError={setErrorToast}
+            />
           </>
         )}
       </section>
@@ -142,50 +259,4 @@ export function InternDailyReportsView({
       </p>
     </div>
   );
-}
-
-export async function loadInternDailyReportsPage(profile: Profile) {
-  const supabase = await createClient();
-  const today = getLocalDateString();
-
-  const { data: todayReport } = await supabase
-    .from("daily_reports")
-    .select("*")
-    .eq("user_id", profile.id)
-    .eq("report_date", today)
-    .maybeSingle();
-
-  let teammates: Profile[] = [];
-  if (profile.team_id) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, full_name, email, role, status, job_title, team_id, manager_id")
-      .eq("team_id", profile.team_id)
-      .eq("role", "intern")
-      .eq("status", "active")
-      .order("full_name");
-    teammates = (data ?? []) as Profile[];
-  }
-
-  const ids = teammates.map((member) => member.id);
-  const { data: submittedRows } = ids.length
-    ? await supabase
-        .from("daily_reports")
-        .select("user_id")
-        .eq("report_date", today)
-        .in("user_id", ids)
-    : { data: [] as Array<{ user_id: string }> };
-
-  const submittedIds = new Set(
-    (submittedRows ?? []).map((row) => row.user_id)
-  );
-
-  return {
-    todayReport: (todayReport as DailyReport | null) ?? null,
-    teamRows: teammates.map((member) => ({
-      member,
-      submitted: submittedIds.has(member.id),
-      isSelf: member.id === profile.id,
-    })),
-  };
 }

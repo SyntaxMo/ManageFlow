@@ -1,11 +1,12 @@
 "use client";
 
-import type { DailyReport } from "@/lib/db/types";
+import type { DailyReport, ReportFile } from "@/lib/db/types";
 import { formatDate, formatTime } from "@/lib/db/status";
 import { Button } from "@/components/ui/Button";
 
 interface PmDailyReportViewModalProps {
   report: DailyReport;
+  reportFile?: ReportFile | null;
   internName: string;
   position: string;
   open: boolean;
@@ -37,6 +38,7 @@ function DetailField({
 
 export function PmDailyReportViewModal({
   report,
+  reportFile,
   internName,
   position,
   open,
@@ -47,6 +49,7 @@ export function PmDailyReportViewModal({
   const formData = report.form_data ?? {};
   const minigame =
     typeof formData.minigame === "string" ? formData.minigame : null;
+  const hasUploadedDocument = Boolean(reportFile);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -84,48 +87,67 @@ export function PmDailyReportViewModal({
         <div className="grid gap-4 sm:grid-cols-2">
           <DetailField label="Member" value={internName} />
           <DetailField label="Position" value={position} />
-          <DetailField label="Work Mode" value={report.work_mode ?? "—"} />
-          <DetailField
-            label="Working Time"
-            value={`${formatTime(report.working_time_start)} – ${formatTime(report.working_time_end)}`}
-          />
-          <DetailField
-            label="Total Hours"
-            value={
-              report.total_hours != null
-                ? Number(report.total_hours).toFixed(1)
-                : "—"
-            }
-          />
           <DetailField
             label="Submitted At"
             value={formatTime(report.created_at)}
           />
-          {minigame && <DetailField label="Minigame" value={minigame} />}
+          {hasUploadedDocument ? (
+            <>
+              <DetailField label="Report Type" value="Uploaded document" />
+              <DetailField
+                label="Uploaded File"
+                value={reportFile?.file_name ?? "—"}
+              />
+            </>
+          ) : (
+            <>
+              <DetailField label="Work Mode" value={report.work_mode ?? "—"} />
+              <DetailField
+                label="Working Time"
+                value={`${formatTime(report.working_time_start)} – ${formatTime(report.working_time_end)}`}
+              />
+              <DetailField
+                label="Total Hours"
+                value={
+                  report.total_hours != null
+                    ? Number(report.total_hours).toFixed(1)
+                    : "—"
+                }
+              />
+              {minigame && <DetailField label="Minigame" value={minigame} />}
+            </>
+          )}
         </div>
 
-        <div className="mt-4 space-y-4">
-          <DetailField
-            label="Work Completed Today"
-            value={report.completed_work ?? "—"}
-            multiline
-          />
-          <DetailField
-            label="Submission Links"
-            value={report.submission_links ?? "—"}
-            multiline
-          />
-          <DetailField
-            label="Notes"
-            value={report.notes ?? report.blockers ?? "—"}
-            multiline
-          />
-          <DetailField
-            label="Member Confirmed"
-            value={report.member_confirmed ? "Yes" : "No"}
-          />
-          <DetailField label="Signature" value={report.signature ?? "—"} />
-        </div>
+        {hasUploadedDocument ? (
+          <div className="mt-4 rounded-[10px] border border-border bg-background px-4 py-3 text-sm text-muted">
+            This report was submitted as an uploaded document. Use Download to
+            open the original file.
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            <DetailField
+              label="Work Completed Today"
+              value={report.completed_work ?? "—"}
+              multiline
+            />
+            <DetailField
+              label="Submission Links"
+              value={report.submission_links ?? "—"}
+              multiline
+            />
+            <DetailField
+              label="Notes"
+              value={report.notes ?? report.blockers ?? "—"}
+              multiline
+            />
+            <DetailField
+              label="Member Confirmed"
+              value={report.member_confirmed ? "Yes" : "No"}
+            />
+            <DetailField label="Signature" value={report.signature ?? "—"} />
+          </div>
+        )}
 
         <div className="mt-6 flex justify-end">
           <Button type="button" variant="secondary" onClick={onClose}>

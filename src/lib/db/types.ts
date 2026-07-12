@@ -123,6 +123,22 @@ export type DailyReport = {
   profiles?: { full_name: string; email: string } | null;
 };
 
+export type ReportFile = {
+  id: string;
+  uploaded_by: string;
+  project_id: string | null;
+  report_id: string | null;
+  team_id: string | null;
+  file_name: string;
+  file_path: string;
+  file_type: string;
+  file_category: string;
+  file_size: number;
+  visibility: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type PendingManagerAssignmentRequest = {
   request_id: string;
   intern_id: string;
@@ -189,6 +205,8 @@ export type MeetingRequest = {
   projects?: { name: string } | null;
 };
 
+export type TaskPriority = "low" | "medium" | "high" | "critical";
+
 export type Task = {
   id: string;
   title: string;
@@ -196,8 +214,10 @@ export type Task = {
   assigned_to: string | null;
   project_id: string | null;
   team_id: string | null;
+  created_by: string | null;
   status: string;
   approval_status: TaskApprovalStatus | string | null;
+  priority: TaskPriority | string | null;
   due_date: string | null;
   progress: number | null;
 };

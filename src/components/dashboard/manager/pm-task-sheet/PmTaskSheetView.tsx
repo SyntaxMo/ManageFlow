@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, Square } from "lucide-react";
+import { CalendarDays, Check, Plus, Square } from "lucide-react";
 import type { PmTaskSheetData } from "@/lib/data/pm-task-sheet";
 import { getInitials } from "@/lib/dashboard/helpers";
 import { approveTask } from "@/lib/task-sheet/actions";
@@ -12,6 +12,8 @@ import {
   getTaskStatusLabel,
   isTaskApproved,
 } from "@/lib/task-sheet/task-sheet";
+import { TaskFormModal } from "@/components/dashboard/manager/pm-task-sheet/TaskFormModal";
+import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
 interface PmTaskSheetViewProps {
@@ -28,6 +30,8 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
   const [toast, setToast] = useState<string | null>(null);
   const [errorToast, setErrorToast] = useState<string | null>(null);
   const [approvingTaskId, setApprovingTaskId] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [defaultInternId, setDefaultInternId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -47,6 +51,11 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
   function handleDateChange(nextDate: string) {
     router.push(`/dashboard/task-sheet?date=${nextDate}`);
     router.refresh();
+  }
+
+  function openCreateTask(internId?: string) {
+    setDefaultInternId(internId ?? null);
+    setFormOpen(true);
   }
 
   function handleApprove(taskId: string) {
@@ -71,9 +80,6 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
     if (data.loadState === "interns_error") {
       return data.errors[0] ?? "We could not load your assigned interns.";
     }
-    if (data.loadState === "tasks_error") {
-      return data.errors[0] ?? "We could not load tasks for the selected date.";
-    }
     if (data.loadState === "no_interns") {
       return "No active interns are assigned to you.";
     }
@@ -82,6 +88,11 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
     }
     return null;
   }, [data, hasTasks]);
+
+  const canAddTask =
+    data.loadState === "loaded" &&
+    data.interns.length > 0 &&
+    data.projects.length > 0;
 
   return (
     <div>
@@ -111,18 +122,30 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
           </p>
         </div>
 
-        <div className="relative w-full sm:w-auto sm:min-w-[180px]">
-          <CalendarDays
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
-            aria-hidden="true"
-          />
-          <input
-            type="date"
-            value={data.selectedDate}
-            onChange={(event) => handleDateChange(event.target.value)}
-            className="h-11 w-full rounded-[10px] border border-border bg-white pl-10 pr-3 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            aria-label="Select task date"
-          />
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-auto sm:min-w-[180px]">
+            <CalendarDays
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+              aria-hidden="true"
+            />
+            <input
+              type="date"
+              value={data.selectedDate}
+              onChange={(event) => handleDateChange(event.target.value)}
+              className="h-11 w-full rounded-[10px] border border-border bg-white pl-10 pr-3 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              aria-label="Select task date"
+            />
+          </div>
+
+          <Button
+            type="button"
+            onClick={() => openCreateTask()}
+            disabled={!canAddTask}
+            className="h-11 w-full sm:w-auto"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Add Task
+          </Button>
         </div>
       </div>
 
@@ -158,14 +181,19 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
         </div>
       )}
 
-      {pageMessage ? (
+      {data.loadState === "no_interns" || data.loadState === "interns_error" ? (
         <div className="rounded-[12px] border border-border bg-white px-6 py-12 text-center text-sm text-muted">
           {pageMessage}
         </div>
       ) : (
         <div className="space-y-4">
+          {pageMessage && !hasTasks && (
+            <div className="rounded-[12px] border border-border bg-white px-6 py-8 text-center text-sm text-muted">
+              {pageMessage}
+            </div>
+          )}
+
           {data.groups.map((group) => {
-            if (group.tasks.length === 0) return null;
             const position = getInternPosition(
               group.intern.job_title,
               group.intern.role
@@ -193,96 +221,116 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
                   </p>
                 </div>
 
-                <div className="hidden border-b border-border bg-background/60 px-4 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_120px_140px] sm:gap-4 sm:px-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                    Task
-                  </p>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                    Status
-                  </p>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                    PM Approved
-                  </p>
-                </div>
+                {group.tasks.length === 0 ? (
+                  <div className="px-4 py-6 text-center sm:px-5">
+                    <p className="text-sm text-muted">No tasks assigned for this date.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="hidden border-b border-border bg-background/60 px-4 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_120px_140px] sm:gap-4 sm:px-5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                        Task
+                      </p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                        Status
+                      </p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                        PM Approved
+                      </p>
+                    </div>
 
-                <ul>
-                  {group.tasks.map((task) => {
-                    const approved = isTaskApproved(task);
-                    const approvable = canApproveTask(task);
-                    const loading = approvingTaskId === task.id && isPending;
+                    <ul>
+                      {group.tasks.map((task) => {
+                        const approved = isTaskApproved(task);
+                        const approvable = canApproveTask(task);
+                        const loading = approvingTaskId === task.id && isPending;
 
-                    return (
-                      <li
-                        key={task.id}
-                        className="border-b border-border px-4 py-4 last:border-b-0 sm:grid sm:grid-cols-[minmax(0,1fr)_120px_140px] sm:items-center sm:gap-4 sm:px-5"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-ink">{task.title}</p>
-                          {task.description && (
-                            <p className="mt-1 line-clamp-2 text-xs text-muted">
-                              {task.description}
-                            </p>
-                          )}
-                          <div className="mt-2 sm:hidden">
-                            <span
-                              className={cn(
-                                "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
-                                getTaskStatusBadgeClass(task.status)
-                              )}
-                            >
-                              {getTaskStatusLabel(task.status)}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 hidden sm:block">
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
-                              getTaskStatusBadgeClass(task.status)
-                            )}
+                        return (
+                          <li
+                            key={task.id}
+                            className="border-b border-border px-4 py-4 last:border-b-0 sm:grid sm:grid-cols-[minmax(0,1fr)_120px_140px] sm:items-center sm:gap-4 sm:px-5"
                           >
-                            {getTaskStatusLabel(task.status)}
-                          </span>
-                        </div>
-
-                        <div className="mt-3 sm:mt-0">
-                          {approved ? (
-                            <span className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-medium text-emerald-700 sm:w-auto">
-                              <Check className="h-4 w-4" aria-hidden="true" />
-                              Approved
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleApprove(task.id)}
-                              disabled={!approvable || loading || isPending}
-                              className={cn(
-                                "inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:w-auto",
-                                approvable
-                                  ? "border-border bg-white text-ink hover:bg-background"
-                                  : "cursor-not-allowed border-border bg-background text-muted opacity-60"
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-ink">{task.title}</p>
+                              {task.description && (
+                                <p className="mt-1 line-clamp-2 text-xs text-muted">
+                                  {task.description}
+                                </p>
                               )}
-                              aria-label={
-                                approvable
-                                  ? `Approve ${task.title}`
-                                  : `${task.title} is not eligible for approval`
-                              }
-                            >
-                              <Square className="h-4 w-4" aria-hidden="true" />
-                              {loading ? "Approving..." : "Approve"}
-                            </button>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
+                              <div className="mt-2 sm:hidden">
+                                <span
+                                  className={cn(
+                                    "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
+                                    getTaskStatusBadgeClass(task.status)
+                                  )}
+                                >
+                                  {getTaskStatusLabel(task.status)}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 hidden sm:block">
+                              <span
+                                className={cn(
+                                  "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
+                                  getTaskStatusBadgeClass(task.status)
+                                )}
+                              >
+                                {getTaskStatusLabel(task.status)}
+                              </span>
+                            </div>
+
+                            <div className="mt-3 sm:mt-0">
+                              {approved ? (
+                                <span className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-medium text-emerald-700 sm:w-auto">
+                                  <Check className="h-4 w-4" aria-hidden="true" />
+                                  Approved
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleApprove(task.id)}
+                                  disabled={!approvable || loading || isPending}
+                                  className={cn(
+                                    "inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:w-auto",
+                                    approvable
+                                      ? "border-border bg-white text-ink hover:bg-background"
+                                      : "cursor-not-allowed border-border bg-background text-muted opacity-60"
+                                  )}
+                                  aria-label={
+                                    approvable
+                                      ? `Approve ${task.title}`
+                                      : `${task.title} is not eligible for approval`
+                                  }
+                                >
+                                  <Square className="h-4 w-4" aria-hidden="true" />
+                                  {loading ? "Approving..." : "Approve"}
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
+                )}
               </section>
             );
           })}
         </div>
       )}
+
+      <TaskFormModal
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        data={data}
+        defaultInternId={defaultInternId}
+        onSuccess={(message) => {
+          setToast(message);
+          router.refresh();
+        }}
+        onError={setErrorToast}
+      />
     </div>
   );
 }

@@ -22,6 +22,7 @@ import {
   submitWeeklySummary,
 } from "@/lib/weekly-summary/actions";
 import { PmWeeklySummaryFormModal } from "@/components/dashboard/manager/pm-weekly-summary/PmWeeklySummaryFormModal";
+import { TemplateDownloadButton } from "@/components/dashboard/manager/pm-weekly-summary/TemplateDownloadButton";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/db/status";
 
@@ -49,7 +50,7 @@ export function PmWeeklySummaryView({ data }: PmWeeklySummaryViewProps) {
     null
   );
   const [toast, setToast] = useState<string | null>(null);
-  const [templateLoading, setTemplateLoading] = useState(false);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
   const [downloadLoadingId, setDownloadLoadingId] = useState<string | null>(
     null
   );
@@ -62,38 +63,17 @@ export function PmWeeklySummaryView({ data }: PmWeeklySummaryViewProps) {
     data.loadState === "loaded";
 
   useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 4000);
+    if (!toast && !errorToast) return;
+    const timer = window.setTimeout(() => {
+      setToast(null);
+      setErrorToast(null);
+    }, 4000);
     return () => window.clearTimeout(timer);
-  }, [toast]);
+  }, [toast, errorToast]);
 
   function handleWeekSelect(weekNumber: number) {
     router.push(`/dashboard/weekly-summary?week=${weekNumber}`);
     router.refresh();
-  }
-
-  async function handleTemplateDownload() {
-    setTemplateLoading(true);
-    try {
-      const weekQuery = data.selectedWeekNumber
-        ? `?week=${data.selectedWeekNumber}`
-        : "";
-      const response = await fetch(
-        `/api/weekly-summary/template${weekQuery}`
-      );
-      if (!response.ok) throw new Error("download_failed");
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = "ManageFlow_Weekly_Summary_Template.pdf";
-      anchor.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      setToast("Failed to download the template.");
-    } finally {
-      setTemplateLoading(false);
-    }
   }
 
   async function handleSummaryDownload(summaryId: string) {
@@ -115,7 +95,7 @@ export function PmWeeklySummaryView({ data }: PmWeeklySummaryViewProps) {
       anchor.click();
       URL.revokeObjectURL(url);
     } catch {
-      setToast("Failed to download the summary.");
+      setErrorToast("Failed to download the summary.");
     } finally {
       setDownloadLoadingId(null);
     }
@@ -159,6 +139,15 @@ export function PmWeeklySummaryView({ data }: PmWeeklySummaryViewProps) {
 
   return (
     <div>
+      {errorToast && (
+        <div
+          role="alert"
+          className="mb-4 rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {errorToast}
+        </div>
+      )}
+
       {toast && (
         <div
           role="status"
@@ -178,15 +167,9 @@ export function PmWeeklySummaryView({ data }: PmWeeklySummaryViewProps) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleTemplateDownload}
-          disabled={templateLoading || Boolean(pageError)}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-deep px-4 text-sm font-medium text-white transition-colors hover:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Download className="h-4 w-4" aria-hidden="true" />
-          {templateLoading ? "Downloading..." : "Download Template"}
-        </button>
+        <TemplateDownloadButton
+          onError={(message) => setErrorToast(message)}
+        />
       </div>
 
       {data.errors.length > 0 && (

@@ -16,7 +16,12 @@ import {
   getTodayInAppTimezone,
   getWeekByNumber,
   type ProjectWeek,
-} from "@/lib/weekly-summary/weeks";
+} from "@/lib/project/weeks";
+import {
+  buildInternshipTimeline,
+  getTimelineWeekGoal,
+  type InternshipTimelineWeek,
+} from "@/lib/timeline/internship-timeline";
 
 const ACTIVE_PROJECT_STATUSES = [
   "planning",
@@ -52,6 +57,7 @@ export type PmSchedulePageData = {
   todayMeetings: Meeting[];
   upcomingMeetings: Meeting[];
   timelinePhases: TimelinePhase[];
+  internshipTimeline: InternshipTimelineWeek[];
   meetingsLoadState: PmScheduleQueryState;
   timelineLoadState: PmScheduleQueryState;
   internsLoadState: PmScheduleQueryState;
@@ -175,6 +181,7 @@ function emptySchedulePageData(
     todayMeetings: [],
     upcomingMeetings: [],
     timelinePhases: [],
+    internshipTimeline: [],
     meetingsLoadState: "loaded",
     timelineLoadState: "loaded",
     internsLoadState: "loaded",
@@ -311,7 +318,10 @@ async function assembleSchedulePageData(options: {
 
   const resolvedGoal =
     currentWeek && timelineLoadState === "loaded"
-      ? findWeekGoal(timelineItems, currentWeek.weekStart, currentWeek.weekEnd)
+      ? getTimelineWeekGoal(
+          buildInternshipTimeline(project, timelineItems, today),
+          currentWeekNumber ?? currentWeek.weekNumber
+        ) ?? findWeekGoal(timelineItems, currentWeek.weekStart, currentWeek.weekEnd)
       : null;
 
   const weekTimelineItems =
@@ -332,6 +342,11 @@ async function assembleSchedulePageData(options: {
       ? buildInternshipTimelinePhases(weeks, timelineItems, currentWeekNumber)
       : [];
 
+  const internshipTimeline =
+    timelineLoadState === "loaded"
+      ? buildInternshipTimeline(project, timelineItems, today)
+      : [];
+
   return {
     profile,
     project,
@@ -347,6 +362,7 @@ async function assembleSchedulePageData(options: {
     todayMeetings,
     upcomingMeetings,
     timelinePhases,
+    internshipTimeline,
     meetingsLoadState,
     timelineLoadState,
     internsLoadState,

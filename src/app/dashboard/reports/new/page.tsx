@@ -15,7 +15,11 @@ export default async function NewReportPage() {
 
   const { profile } = data;
 
-  if (!isAccountActive(profile.status) || profile.role !== "intern") {
+  if (profile.role === "intern") {
+    redirect("/dashboard/reports");
+  }
+
+  if (!isAccountActive(profile.status)) {
     redirect("/dashboard");
   }
 

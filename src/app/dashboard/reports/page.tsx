@@ -10,10 +10,8 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ProjectManagerShell } from "@/components/layout/ProjectManagerShell";
 import { InternShell } from "@/components/layout/InternShell";
 import { PmDailyReportsView } from "@/components/dashboard/manager/pm-reports/PmDailyReportsView";
-import {
-  InternDailyReportsView,
-  loadInternDailyReportsPage,
-} from "@/components/dashboard/intern/InternDailyReportsView";
+import { InternDailyReportsView } from "@/components/dashboard/intern/InternDailyReportsView";
+import { loadInternDailyReportsPage } from "@/lib/data/intern-daily-reports";
 import { Badge } from "@/components/ui/Badge";
 import {
   Card,
@@ -95,6 +93,7 @@ export default async function ReportsPage({
         <InternDailyReportsView
           profile={profileWithTeam}
           todayReport={reportsPage.todayReport}
+          todayFile={reportsPage.todayFile}
           teamRows={reportsPage.teamRows}
         />
       </InternShell>

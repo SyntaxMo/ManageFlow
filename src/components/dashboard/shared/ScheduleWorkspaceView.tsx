@@ -149,7 +149,7 @@ export function ScheduleWorkspaceView({
 
       <div className="mt-5">
         <FullInternshipTimeline
-          phases={data.timelinePhases}
+          weeks={data.internshipTimeline}
           startDate={data.project?.start_date ?? null}
           deadline={data.project?.deadline ?? null}
         />

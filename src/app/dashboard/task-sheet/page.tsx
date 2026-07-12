@@ -37,7 +37,7 @@ async function TaskSheetContent({
 export default async function TaskSheetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; week?: string }>;
 }) {
   const data = await getUserProfile();
 

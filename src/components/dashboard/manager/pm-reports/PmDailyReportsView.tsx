@@ -11,6 +11,7 @@ import {
   formatSubmissionTime,
   getReportDownloadFilename,
 } from "@/lib/reports/download-report";
+import { downloadDailyReportDocument } from "@/lib/reports/download-document";
 import { PmDailyReportViewModal } from "@/components/dashboard/manager/pm-reports/PmDailyReportViewModal";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ function getInternPosition(jobTitle: string | null, role: string) {
 export function PmDailyReportsView({ data }: PmDailyReportsViewProps) {
   const router = useRouter();
   const [viewingReportId, setViewingReportId] = useState<string | null>(null);
+  const [downloadLoadingId, setDownloadLoadingId] = useState<string | null>(null);
 
   const viewingRow = useMemo(
     () => data.rows.find((row) => row.report?.id === viewingReportId) ?? null,
@@ -37,11 +39,24 @@ export function PmDailyReportsView({ data }: PmDailyReportsViewProps) {
     router.refresh();
   }
 
-  function handleDownload(
+  async function handleDownload(
     report: NonNullable<(typeof data.rows)[number]["report"]>,
     internName: string,
-    position: string
+    position: string,
+    file: (typeof data.rows)[number]["file"]
   ) {
+    if (file) {
+      setDownloadLoadingId(report.id);
+      try {
+        await downloadDailyReportDocument(report.id, file.file_name);
+      } catch {
+        window.alert("Failed to download the uploaded report.");
+      } finally {
+        setDownloadLoadingId(null);
+      }
+      return;
+    }
+
     const content = formatReportDownloadContent(report, internName, position);
     const filename = getReportDownloadFilename(internName, report.report_date);
     downloadReportFile(content, filename);
@@ -129,7 +144,7 @@ export function PmDailyReportsView({ data }: PmDailyReportsViewProps) {
                   </td>
                 </tr>
               ) : (
-                data.rows.map(({ intern, report, status }) => {
+                data.rows.map(({ intern, report, file, status }) => {
                   const position = getInternPosition(
                     intern.job_title,
                     intern.role
@@ -192,13 +207,17 @@ export function PmDailyReportsView({ data }: PmDailyReportsViewProps) {
                                 handleDownload(
                                   report,
                                   intern.full_name,
-                                  position
+                                  position,
+                                  file
                                 )
                               }
-                              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-deep px-3 text-sm font-medium text-white transition-colors hover:bg-primary"
+                              disabled={downloadLoadingId === report.id}
+                              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-deep px-3 text-sm font-medium text-white transition-colors hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               <Download className="h-4 w-4" aria-hidden="true" />
-                              Download
+                              {downloadLoadingId === report.id
+                                ? "Downloading..."
+                                : "Download"}
                             </button>
                           </div>
                         ) : (
@@ -217,6 +236,7 @@ export function PmDailyReportsView({ data }: PmDailyReportsViewProps) {
       {viewingRow?.report && (
         <PmDailyReportViewModal
           report={viewingRow.report}
+          reportFile={viewingRow.file}
           internName={viewingRow.intern.full_name}
           position={getInternPosition(
             viewingRow.intern.job_title,

@@ -72,6 +72,7 @@ export async function ProjectManagerDashboard({
         <InternshipTimelineCard
           weeks={data.timelineWeeks}
           moreWeeks={data.moreTimelineWeeks}
+          href="/project-manager/schedule-timeline"
         />
       </section>
 

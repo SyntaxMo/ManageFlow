@@ -2,27 +2,27 @@ import { createClient } from "@/lib/supabase/server";
 import type { Profile, Project, Task } from "@/lib/db/types";
 import { formatIsoDate } from "@/lib/dashboard/helpers";
 import {
+  getDefaultPmProject,
+  getPmAccessibleProjects,
+  getPmAssignedInterns,
+} from "@/lib/task-sheet/assignments";
+import {
   buildTaskSheetStats,
   groupTasksByIntern,
   type PmInternTaskGroup,
 } from "@/lib/task-sheet/task-sheet";
 
-const ACTIVE_PROJECT_STATUSES = [
-  "planning",
-  "active",
-  "in_progress",
-  "under_review",
-];
-
 export type PmTaskSheetLoadState =
   | "loaded"
   | "interns_error"
-  | "tasks_error"
   | "no_interns";
 
 export type PmTaskSheetData = {
   selectedDate: string;
-  project: Project | null;
+  projects: Project[];
+  defaultProject: Project | null;
+  teamName: string | null;
+  interns: Profile[];
   groups: PmInternTaskGroup[];
   stats: {
     approved: number;
@@ -49,50 +49,65 @@ export async function getPmTaskSheetData(
   const supabase = await createClient();
   const errors: string[] = [];
 
-  const { data: interns, error: internsError } = await supabase
-    .from("profiles")
-    .select(
-      "id, full_name, email, role, status, job_title, team_id, manager_id, created_at, updated_at, avatar_url, department_id"
-    )
-    .eq("manager_id", managerId)
-    .eq("status", "active")
-    .order("full_name");
+  const { interns: internList, error: internsError } = await getPmAssignedInterns(
+    supabase,
+    managerId
+  );
 
-  if (internsError) {
-    console.error("Failed to load PM interns for task sheet:", internsError.message);
+  if (internsError && internList.length === 0) {
     return {
       selectedDate,
-      project: null,
+      projects: [],
+      defaultProject: null,
+      teamName: null,
+      interns: [],
       groups: [],
       stats: { approved: 0, pendingApproval: 0, inProgress: 0 },
       loadState: "interns_error",
-      errors: ["We could not load your assigned interns."],
+      errors: [internsError],
     };
   }
 
-  const internList = (interns ?? []) as Profile[];
+  if (internsError) {
+    errors.push(internsError);
+  }
+
   if (internList.length === 0) {
     return {
       selectedDate,
-      project: null,
+      projects: [],
+      defaultProject: null,
+      teamName: null,
+      interns: [],
       groups: [],
       stats: { approved: 0, pendingApproval: 0, inProgress: 0 },
       loadState: "no_interns",
-      errors: [],
+      errors,
     };
   }
 
-  const { data: projectRow } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("manager_id", managerId)
-    .in("status", ACTIVE_PROJECT_STATUSES)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const project = (projectRow as Project | null) ?? null;
   const internIds = internList.map((intern) => intern.id);
+  const { projects, error: projectsError } = await getPmAccessibleProjects(
+    supabase,
+    managerId,
+    internIds
+  );
+
+  if (projectsError) {
+    errors.push(projectsError);
+  }
+
+  const defaultProject = getDefaultPmProject(projects);
+
+  let teamName: string | null = null;
+  if (managerTeamId) {
+    const { data: team } = await supabase
+      .from("teams")
+      .select("name")
+      .eq("id", managerTeamId)
+      .maybeSingle();
+    teamName = team?.name ?? null;
+  }
 
   let taskQuery = supabase
     .from("tasks")
@@ -100,8 +115,11 @@ export async function getPmTaskSheetData(
     .in("assigned_to", internIds)
     .eq("due_date", selectedDate);
 
-  if (project?.id) {
-    taskQuery = taskQuery.eq("project_id", project.id);
+  if (projects.length > 0) {
+    taskQuery = taskQuery.in(
+      "project_id",
+      projects.map((project) => project.id)
+    );
   }
 
   if (managerTeamId) {
@@ -114,11 +132,14 @@ export async function getPmTaskSheetData(
     console.error("Failed to load task sheet tasks:", tasksError.message);
     return {
       selectedDate,
-      project,
+      projects,
+      defaultProject,
+      teamName,
+      interns: internList,
       groups: groupTasksByIntern(internList, []),
       stats: { approved: 0, pendingApproval: 0, inProgress: 0 },
-      loadState: "tasks_error",
-      errors: ["We could not load tasks for the selected date."],
+      loadState: "loaded",
+      errors: [...errors, "We could not load tasks for the selected date."],
     };
   }
 
@@ -127,7 +148,10 @@ export async function getPmTaskSheetData(
 
   return {
     selectedDate,
-    project,
+    projects,
+    defaultProject,
+    teamName,
+    interns: internList,
     groups,
     stats: buildTaskSheetStats(tasks),
     loadState: "loaded",

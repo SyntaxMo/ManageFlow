@@ -10,13 +10,24 @@ import type {
   WorkScheduleBlock,
 } from "@/lib/db/types";
 import { getLocalDateString, getLocalDayOfWeek, formatTime } from "@/lib/db/status";
+import { daysBetween } from "@/lib/dashboard/helpers";
 import { getInternDashboardData } from "@/lib/data/dashboard";
 import {
-  buildCurrentGoal,
-  buildTimelineWeeks,
-  type ActiveProjectLoadState,
-  type PmCurrentGoal,
-  type PmTimelineWeek,
+  calculateProjectWeeks,
+  getCurrentProjectWeekNumber,
+  getWeekByNumber,
+  isDateInWeek,
+} from "@/lib/project/weeks";
+import {
+  buildInternshipTimeline,
+  buildTimelinePreview,
+  getCurrentTimelineWeek,
+} from "@/lib/timeline/internship-timeline";
+import { isTaskApproved, isTaskCompleted, sortTasksForDisplay } from "@/lib/task-sheet/task-sheet";
+import type {
+  ActiveProjectLoadState,
+  PmCurrentGoal,
+  PmTimelineWeek,
 } from "@/lib/data/pm-dashboard";
 
 export type InternDashboardPageData = {
@@ -25,6 +36,7 @@ export type InternDashboardPageData = {
   currentGoal: PmCurrentGoal | null;
   timelineWeeks: PmTimelineWeek[];
   moreTimelineWeeks: number;
+  currentPhase: string | null;
   todayMeetings: MeetingRequest[];
   todayTasks: Task[];
   tasksDone: number;
@@ -70,14 +82,51 @@ export async function getInternDashboardPageData(
     ? base.timeline.filter((item) => item.project_id === activeProject.id)
     : [];
 
-  const currentGoal = buildCurrentGoal(activeProject, milestones, today);
+  const internshipTimeline = buildInternshipTimeline(activeProject, milestones, today);
   const { weeks: timelineWeeks, moreWeeks: moreTimelineWeeks } =
-    buildTimelineWeeks(activeProject, milestones, today);
+    buildTimelinePreview(internshipTimeline);
+  const currentTimelineWeek = getCurrentTimelineWeek(internshipTimeline);
 
-  const todayTasks = base.tasks.filter(
-    (task) => !task.due_date || task.due_date === today
-  );
-  const tasksDone = todayTasks.filter((task) => isTaskDone(task.status)).length;
+  const currentGoal: PmCurrentGoal | null = currentTimelineWeek
+    ? {
+        weekNumber: currentTimelineWeek.weekNumber,
+        title:
+          currentTimelineWeek.mainTasks?.trim() ||
+          currentTimelineWeek.expectedDeliverables?.trim() ||
+          currentTimelineWeek.phase,
+        daysLeft: Math.max(0, daysBetween(today, currentTimelineWeek.weekEnd)),
+      }
+    : null;
+
+  const projectTasks = activeProject
+    ? base.tasks.filter((task) => task.project_id === activeProject.id)
+    : base.tasks;
+
+  const currentWeek =
+    activeProject?.start_date
+      ? getWeekByNumber(
+          calculateProjectWeeks(activeProject.start_date, activeProject.deadline),
+          getCurrentProjectWeekNumber(activeProject.start_date, today)
+        )
+      : null;
+
+  const relevantTasks = projectTasks.filter((task) => {
+    if (!task.due_date) {
+      return true;
+    }
+    if (task.due_date === today) {
+      return true;
+    }
+    if (currentWeek) {
+      return isDateInWeek(task.due_date, currentWeek);
+    }
+    return false;
+  });
+
+  const todayTasks = sortTasksForDisplay(relevantTasks);
+  const tasksDone = todayTasks.filter(
+    (task) => isTaskCompleted(task) || isTaskApproved(task)
+  ).length;
 
   const todayMeetings = base.meetings.filter(
     (meeting) =>
@@ -121,6 +170,7 @@ export async function getInternDashboardPageData(
     currentGoal,
     timelineWeeks,
     moreTimelineWeeks,
+    currentPhase: currentTimelineWeek?.phase ?? null,
     todayMeetings,
     todayTasks,
     tasksDone,

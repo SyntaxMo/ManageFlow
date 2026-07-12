@@ -4,7 +4,8 @@ import type { TemplateSectionField } from "@/lib/db/types";
 export const weekQuerySchema = z.coerce
   .number()
   .int()
-  .positive()
+  .min(0)
+  .max(8)
   .optional();
 
 export const overallStatusSchema = z.enum([
