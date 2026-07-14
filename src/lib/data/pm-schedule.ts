@@ -26,6 +26,7 @@ import {
   getTeamWorkScheduleData,
   type TeamWorkScheduleData,
 } from "@/lib/data/pm-team-work-schedule";
+import { getTeamWeekGoal } from "@/lib/goals/team-week-goals";
 
 const ACTIVE_PROJECT_STATUSES = [
   "planning",
@@ -336,10 +337,14 @@ async function assembleSchedulePageData(options: {
 
   const resolvedGoal =
     currentWeek && timelineLoadState === "loaded"
-      ? getTimelineWeekGoal(
+      ? (teamId
+          ? await getTeamWeekGoal(supabase, teamId, currentWeek.weekNumber)
+          : null) ||
+        getTimelineWeekGoal(
           buildInternshipTimeline(project, timelineItems, today),
           currentWeekNumber ?? currentWeek.weekNumber
-        ) ?? findWeekGoal(timelineItems, currentWeek.weekStart, currentWeek.weekEnd)
+        ) ||
+        findWeekGoal(timelineItems, currentWeek.weekStart, currentWeek.weekEnd)
       : null;
 
   const weekTimelineItems =
@@ -414,7 +419,7 @@ export async function getPmSchedulePageData(
     }
   }
 
-  const teamWorkSchedule = await getTeamWorkScheduleData(managerId);
+  const teamWorkSchedule = await getTeamWorkScheduleData(managerId, managerTeamId);
   const interns = teamWorkSchedule.summaries.map((summary) => ({
     id: summary.intern.id,
     full_name: summary.intern.full_name,
@@ -442,8 +447,7 @@ export async function getPmSchedulePageData(
     .select("*")
     .eq("manager_id", managerId)
     .in("status", ACTIVE_PROJECT_STATUSES)
-    .order("updated_at", { ascending: false })
-    .limit(1);
+    .order("updated_at", { ascending: false });
 
   if (projectError) {
     console.error("Failed to load active project:", projectError.message);
@@ -459,14 +463,24 @@ export async function getPmSchedulePageData(
     });
   }
 
-  const project = (projectRows?.[0] ?? null) as Project | null;
+  const projects = (projectRows ?? []) as Project[];
+  const project =
+    (managerTeamId
+      ? projects.find((item) => item.team_id === managerTeamId)
+      : null) ??
+    projects[0] ??
+    null;
+
   if (!project) {
     return emptySchedulePageData(managerProfile, {
       teamName,
       interns,
+      meetingsLoadState: "loaded",
+      timelineLoadState: "error",
       internsLoadState,
       teamWorkSchedule,
-      errors,
+      loadState: "project_error",
+      errors: ["No active project found for your team."],
     });
   }
 

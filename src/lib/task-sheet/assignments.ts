@@ -21,18 +21,25 @@ export function formatInternOptionLabel(intern: Pick<Profile, "full_name" | "job
 
 export async function getPmAssignedInterns(
   supabase: SupabaseClient,
-  managerId: string
+  managerId: string,
+  teamId?: string | null
 ): Promise<{ interns: InternProfile[]; error: string | null }> {
   const internIds = new Set<string>();
   let queryError: string | null = null;
 
+  let directQuery = supabase
+    .from("profiles")
+    .select("id")
+    .eq("manager_id", managerId)
+    .eq("role", "intern")
+    .eq("status", "active");
+
+  if (teamId) {
+    directQuery = directQuery.eq("team_id", teamId);
+  }
+
   const [directReportsRes, hierarchyRes, assignmentRequestsRes] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id")
-      .eq("manager_id", managerId)
-      .eq("role", "intern")
-      .eq("status", "active"),
+    directQuery,
     supabase.from("manager_hierarchy").select("user_id").eq("manager_id", managerId),
     supabase
       .from("manager_assignment_requests")
@@ -96,13 +103,19 @@ export async function getPmAssignedInterns(
     return { interns: [], error: "We could not load your assigned interns." };
   }
 
-  return { interns: (profiles ?? []) as InternProfile[], error: queryError };
+  let interns = (profiles ?? []) as InternProfile[];
+  if (teamId) {
+    interns = interns.filter((intern) => intern.team_id === teamId);
+  }
+
+  return { interns, error: queryError };
 }
 
 export async function getPmAccessibleProjects(
   supabase: SupabaseClient,
   managerId: string,
-  internIds: string[]
+  internIds: string[],
+  teamId?: string | null
 ): Promise<{ projects: Project[]; error: string | null }> {
   const projectIds = new Set<string>();
   let queryError: string | null = null;
@@ -169,13 +182,20 @@ export async function getPmAccessibleProjects(
     return { projects: [], error: "We could not load your assigned projects." };
   }
 
-  const projects = ((projectRows ?? []) as Project[]).sort((left, right) => {
+  const projects = ((projectRows ?? []) as Project[])
+    .filter((project) => !teamId || project.team_id === teamId || !project.team_id)
+    .sort((left, right) => {
     const leftActive = ACTIVE_PROJECT_STATUSES.includes(
       left.status as (typeof ACTIVE_PROJECT_STATUSES)[number]
     );
     const rightActive = ACTIVE_PROJECT_STATUSES.includes(
       right.status as (typeof ACTIVE_PROJECT_STATUSES)[number]
     );
+    if (teamId) {
+      const leftTeam = left.team_id === teamId ? 0 : 1;
+      const rightTeam = right.team_id === teamId ? 0 : 1;
+      if (leftTeam !== rightTeam) return leftTeam - rightTeam;
+    }
     if (leftActive !== rightActive) {
       return leftActive ? -1 : 1;
     }
@@ -185,11 +205,19 @@ export async function getPmAccessibleProjects(
   return { projects, error: queryError };
 }
 
-export function getDefaultPmProject(projects: Project[]) {
+export function getDefaultPmProject(
+  projects: Project[],
+  teamId?: string | null
+) {
   const activeProjects = projects.filter((project) =>
     ACTIVE_PROJECT_STATUSES.includes(project.status as (typeof ACTIVE_PROJECT_STATUSES)[number])
   );
-  return activeProjects[0] ?? projects[0] ?? null;
+  const pool = activeProjects.length > 0 ? activeProjects : projects;
+  if (teamId) {
+    const match = pool.find((project) => project.team_id === teamId);
+    if (match) return match;
+  }
+  return pool[0] ?? null;
 }
 
 export async function isInternAssignedToPm(

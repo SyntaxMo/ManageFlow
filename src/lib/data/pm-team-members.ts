@@ -16,6 +16,7 @@ import {
   type AttendanceDisplayLabel,
 } from "@/lib/attendance/pm-attendance";
 import { getTodayInAppTimezone } from "@/lib/weekly-summary/weeks";
+import { getPmTaskSheetData } from "@/lib/data/pm-task-sheet";
 
 const ACTIVE_PROJECT_STATUSES = [
   "planning",
@@ -60,13 +61,14 @@ function getPeriodStart(project: Project | null, member: Profile) {
 }
 
 export async function getPmTeamMembersPageData(
-  managerId: string
+  managerId: string,
+  managerTeamId: string | null = null
 ): Promise<PmTeamMembersPageData> {
   const supabase = await createClient();
   const today = getTodayInAppTimezone();
   const errors: string[] = [];
 
-  const { data: memberRows, error: membersError } = await supabase
+  let membersQuery = supabase
     .from("profiles")
     .select(
       "id, full_name, email, role, status, job_title, team_id, manager_id, avatar_url, created_at, updated_at, department_id"
@@ -74,6 +76,12 @@ export async function getPmTeamMembersPageData(
     .eq("manager_id", managerId)
     .eq("status", "active")
     .order("full_name");
+
+  if (managerTeamId) {
+    membersQuery = membersQuery.eq("team_id", managerTeamId);
+  }
+
+  const { data: memberRows, error: membersError } = await membersQuery;
 
   if (membersError) {
     console.error("Failed to load PM team members:", membersError.message);
@@ -110,15 +118,20 @@ export async function getPmTeamMembersPageData(
     .select("*")
     .eq("manager_id", managerId)
     .in("status", ACTIVE_PROJECT_STATUSES)
-    .order("updated_at", { ascending: false })
-    .limit(1);
+    .order("updated_at", { ascending: false });
 
   if (projectError) {
     console.error("Failed to load active project for team members:", projectError.message);
     errors.push("We could not load your assigned project.");
   }
 
-  const project = (projectRows?.[0] ?? null) as Project | null;
+  const projects = (projectRows ?? []) as Project[];
+  const project =
+    (managerTeamId
+      ? projects.find((item) => item.team_id === managerTeamId)
+      : null) ??
+    projects[0] ??
+    null;
   const periodStarts = new Map(
     members.map((member) => [member.id, getPeriodStart(project, member)])
   );
@@ -305,9 +318,10 @@ export async function getPmTeamMembersPageData(
 
 export async function getPmTeamMemberDetailData(
   managerId: string,
-  memberId: string
+  memberId: string,
+  managerTeamId: string | null = null
 ) {
-  const pageData = await getPmTeamMembersPageData(managerId);
+  const pageData = await getPmTeamMembersPageData(managerId, managerTeamId);
   const memberCard = pageData.members.find(
     (card) => card.member.id === memberId
   );
@@ -422,6 +436,12 @@ export async function getPmTeamMemberDetailData(
     a.name.localeCompare(b.name)
   );
 
+  const taskSheetData = await getPmTaskSheetData(
+    managerId,
+    managerTeamId,
+    pageData.today
+  );
+
   return {
     ...pageData,
     memberCard,
@@ -429,5 +449,6 @@ export async function getPmTeamMemberDetailData(
     scheduleBlocks,
     assignedProjects,
     availableProjects,
+    taskSheetData,
   };
 }

@@ -129,7 +129,7 @@ export function SetInternScheduleModal({
             onChange={handleChange}
             disabled={submitting}
             title="Working days"
-            description="Choose working days and hours. New days copy the latest time range. Minimum 32 hours per week."
+            description="Choose working days and hours. New days copy the latest time range. 32 hours per week is recommended."
           />
 
           {formError && (

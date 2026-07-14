@@ -11,7 +11,9 @@ export const scheduleBlockSchema = z.object({
 
 export const setInternWorkScheduleSchema = z.object({
   intern_id: z.string().uuid("Intern is required."),
-  total_weekly_hours: z.number().min(32, "Schedule must total at least 32 hours."),
+  total_weekly_hours: z
+    .number()
+    .positive("Schedule must include at least some working hours."),
   blocks: z
     .array(scheduleBlockSchema)
     .min(1, "Select at least one working day."),

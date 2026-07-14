@@ -16,8 +16,12 @@ interface ProgressCardProps {
 
 export function ProgressCard({ tasks }: ProgressCardProps) {
   const today = getLocalDateString();
-  const todo = tasks.filter((t) => t.status === "todo").length;
-  const done = tasks.filter((t) => t.status === "done").length;
+  const todo = tasks.filter(
+    (t) => t.status === "todo" || t.status === "to_do"
+  ).length;
+  const done = tasks.filter(
+    (t) => t.status === "done" || t.status === "completed"
+  ).length;
   const inProgress = tasks.filter((t) => t.status === "in_progress").length;
   const blocked = tasks.filter((t) => t.status === "blocked").length;
   const delayed = tasks.filter(

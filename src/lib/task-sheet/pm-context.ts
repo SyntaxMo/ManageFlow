@@ -29,7 +29,11 @@ export async function resolvePmTaskContext(
 ): Promise<PmTaskContextResult> {
   const supabase = await createClient();
 
-  const { interns, error: internsError } = await getPmAssignedInterns(supabase, managerId);
+  const { interns, error: internsError } = await getPmAssignedInterns(
+    supabase,
+    managerId,
+    managerTeamId
+  );
   if (internsError && interns.length === 0) {
     return { success: false, error: internsError };
   }
@@ -38,14 +42,15 @@ export async function resolvePmTaskContext(
   const { projects, error: projectsError } = await getPmAccessibleProjects(
     supabase,
     managerId,
-    internIds
+    internIds,
+    managerTeamId
   );
 
   if (projectsError && projects.length === 0) {
     return { success: false, error: projectsError };
   }
 
-  const defaultProject = getDefaultPmProject(projects);
+  const defaultProject = getDefaultPmProject(projects, managerTeamId);
   if (!defaultProject) {
     return { success: false, error: "No active project is assigned to you." };
   }

@@ -22,14 +22,16 @@ export type TeamWorkScheduleData = {
 };
 
 export async function getTeamWorkScheduleData(
-  managerId: string
+  managerId: string,
+  teamId?: string | null
 ): Promise<TeamWorkScheduleData> {
   const supabase = await createClient();
   const errors: string[] = [];
 
   const { interns, error: internsError } = await getPmAssignedInterns(
     supabase,
-    managerId
+    managerId,
+    teamId
   );
 
   if (internsError) {

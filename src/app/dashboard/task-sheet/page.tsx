@@ -52,12 +52,22 @@ export default async function TaskSheetPage({
   if (profile.role === "intern") {
     const supabase = await createClient();
     const today = getLocalDateString();
-    const { data: tasks } = await supabase
-      .from("tasks")
-      .select("*")
-      .eq("assigned_to", profile.id)
-      .or(`due_date.eq.${today},due_date.is.null`)
-      .order("title");
+    const [{ data: todayRows }, { data: historyRows }] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select("*")
+        .eq("assigned_to", profile.id)
+        .or(`due_date.eq.${today},due_date.is.null`)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("tasks")
+        .select("*")
+        .eq("assigned_to", profile.id)
+        .in("status", ["done"])
+        .lt("due_date", today)
+        .order("created_at", { ascending: false })
+        .limit(40),
+    ]);
 
     return (
       <InternShell
@@ -65,7 +75,8 @@ export default async function TaskSheetPage({
         contentMaxWidthClass="max-w-[1040px]"
       >
         <InternTaskSheetView
-          tasks={(tasks ?? []) as Task[]}
+          todayTasks={(todayRows ?? []) as Task[]}
+          historyTasks={(historyRows ?? []) as Task[]}
           dateLabel={today}
         />
       </InternShell>

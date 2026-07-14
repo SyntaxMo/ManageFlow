@@ -1,6 +1,7 @@
 import type { Project, ProjectTimelineItem } from "@/lib/db/types";
+import { INTERNSHIP_COHORT_START_DATE } from "@/config/internship";
 import {
-  calculateProjectWeeks,
+  calculateMondayAlignedWeeks,
   getCurrentProjectWeekNumber,
   getWeekStatus,
   INTERNSHIP_MAX_WEEK,
@@ -186,24 +187,16 @@ function getContentForWeek(
 export function hasInternshipProjectDates(
   project: Pick<Project, "start_date" | "deadline"> | null | undefined
 ) {
-  return Boolean(project?.start_date);
+  // Cohort calendar always drives the "current week" marker.
+  return Boolean(project?.start_date) || Boolean(INTERNSHIP_COHORT_START_DATE);
 }
 
 function buildCanonicalWeekRanges(
-  project: Pick<Project, "start_date" | "deadline"> | null
+  _project: Pick<Project, "start_date" | "deadline"> | null
 ): ProjectWeek[] {
-  if (!project?.start_date) {
-    return Array.from(
-      { length: INTERNSHIP_MAX_WEEK - INTERNSHIP_MIN_WEEK + 1 },
-      (_, index) => ({
-        weekNumber: INTERNSHIP_MIN_WEEK + index,
-        weekStart: "",
-        weekEnd: "",
-      })
-    );
-  }
-
-  return calculateProjectWeeks(project.start_date, project.deadline);
+  // Always use the Monday-aligned cohort calendar so every team shares
+  // the same week ranges and "days left" (not the project's create date).
+  return calculateMondayAlignedWeeks(INTERNSHIP_COHORT_START_DATE);
 }
 
 function resolvePhaseStatus(
@@ -225,18 +218,13 @@ export function buildInternshipTimeline(
   timelineItems: ProjectTimelineItem[],
   today: string
 ): InternshipTimelineWeek[] {
-  const datesConfigured = hasInternshipProjectDates(project);
   const weeks = buildCanonicalWeekRanges(project);
-  const currentWeekNumber = datesConfigured
-    ? getCurrentProjectWeekNumber(project!.start_date!, today)
-    : null;
+  const cohortMonday = weeks[0]?.weekStart ?? INTERNSHIP_COHORT_START_DATE;
+  const currentWeekNumber = getCurrentProjectWeekNumber(cohortMonday, today);
 
   return weeks.map((week) => {
     const content = getContentForWeek(week.weekNumber, timelineItems);
-    const status =
-      currentWeekNumber === null
-        ? "upcoming"
-        : getWeekStatus(week.weekNumber, currentWeekNumber);
+    const status = getWeekStatus(week.weekNumber, currentWeekNumber);
 
     return {
       ...content,
@@ -271,7 +259,7 @@ export function buildInternshipTimelinePhaseRows(
 export function buildTimelinePreview(
   timeline: InternshipTimelineWeek[],
   maxDisplay = 6,
-  datesConfigured = false
+  datesConfigured = true
 ): { weeks: TimelinePreviewWeek[]; moreWeeks: number } {
   if (timeline.length === 0) {
     return { weeks: [], moreWeeks: 0 };
@@ -300,7 +288,7 @@ export function buildTimelinePreview(
 
 export function getCurrentTimelineWeek(
   timeline: InternshipTimelineWeek[],
-  datesConfigured = false
+  datesConfigured = true
 ): InternshipTimelineWeek | null {
   if (!datesConfigured) {
     return null;

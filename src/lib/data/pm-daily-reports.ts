@@ -26,12 +26,13 @@ export function isValidReportDate(value: string) {
 
 export async function getPmDailyReportsData(
   managerId: string,
-  selectedDate: string
+  selectedDate: string,
+  managerTeamId?: string | null
 ): Promise<PmDailyReportsData> {
   const supabase = await createClient();
   const errors: string[] = [];
 
-  const { data: interns, error: internsError } = await supabase
+  let internsQuery = supabase
     .from("profiles")
     .select(
       "id, full_name, email, role, status, job_title, team_id, manager_id, created_at, updated_at, avatar_url, department_id"
@@ -39,6 +40,12 @@ export async function getPmDailyReportsData(
     .eq("manager_id", managerId)
     .eq("status", "active")
     .order("full_name");
+
+  if (managerTeamId) {
+    internsQuery = internsQuery.eq("team_id", managerTeamId);
+  }
+
+  const { data: interns, error: internsError } = await internsQuery;
 
   if (internsError) {
     console.error("Failed to load PM interns:", internsError.message);

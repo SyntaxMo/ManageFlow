@@ -132,8 +132,8 @@ export function InternProjectsPanel({
 
           {assignedProjects.length === 0 ? (
             <p className="text-sm text-muted">
-              Assign this intern to one of your projects so they can see project
-              work, reports, and schedule details.
+              Assign this intern to one of your projects after accepting them
+              onto your team.
             </p>
           ) : (
             <ul className="space-y-2">

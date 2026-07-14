@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Profile } from "@/lib/db/types";
 import { RoleWorkspaceSidebar } from "@/components/layout/RoleWorkspaceSidebar";
 import { DashboardTopHeader } from "@/components/layout/DashboardTopHeader";
@@ -30,7 +30,17 @@ export function RoleWorkspaceShell({
   footerExtra,
   contentMaxWidthClass = "max-w-[1240px]",
 }: RoleWorkspaceShellProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Mobile starts with the sidebar closed; desktop keeps it open by default.
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setSidebarOpen(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
   const closeSidebar = () => setSidebarOpen(false);
 
   return (
@@ -50,12 +60,22 @@ export function RoleWorkspaceShell({
         navItems={navItems}
         roleBadgeLabel={roleBadgeLabel}
         footerExtra={footerExtra?.(closeSidebar)}
-        onNavigate={closeSidebar}
+        onNavigate={() => {
+          if (window.matchMedia("(max-width: 1023px)").matches) {
+            closeSidebar();
+          }
+        }}
       />
 
-      <div className="flex min-h-screen flex-col lg:pl-[232px]">
+      <div
+        className={cn(
+          "flex min-h-screen flex-col transition-[padding] duration-200",
+          sidebarOpen && "lg:pl-[232px]"
+        )}
+      >
         <DashboardTopHeader
           profile={profile}
+          showBrand={!sidebarOpen}
           onMenuClick={() => setSidebarOpen((open) => !open)}
         />
         <main className={cn("flex-1 px-4 py-6 sm:px-6 lg:px-8")}>

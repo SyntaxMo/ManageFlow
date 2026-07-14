@@ -9,6 +9,7 @@ import { getSidebarNavItems } from "@/lib/auth/navigation";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import type { UserRole } from "@/lib/auth/permissions";
+import { BrandMark } from "@/components/brand/BrandMark";
 
 interface SidebarProps {
   fullName: string;
@@ -66,8 +67,8 @@ export function Sidebar({ fullName, role, status }: SidebarProps) {
   return (
     <aside className="flex h-full w-64 flex-col border-r border-border bg-white">
       <div className="border-b border-border px-6 py-5">
-        <Link href="/dashboard" className="text-xl font-bold text-primary">
-          ManageFlow
+        <Link href="/dashboard">
+          <BrandMark size={36} />
         </Link>
         <p className="mt-1 text-xs text-muted">Game dev team workspace</p>
       </div>

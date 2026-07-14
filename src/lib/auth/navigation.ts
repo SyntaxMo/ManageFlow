@@ -91,7 +91,7 @@ export function getSidebarNavItems(
     case "project_manager":
       return [
         dashboard,
-        { href: "/dashboard/team", label: "Team", icon: Users },
+        { href: "/dashboard/projects", label: "Projects", icon: FolderKanban },
         ...(isActive && canReviewReports(role) ? [dailyReports] : []),
         ...(isActive && canRequestMeeting(role) ? [meetingRequests] : []),
         profile,

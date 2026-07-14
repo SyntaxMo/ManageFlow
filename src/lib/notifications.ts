@@ -27,13 +27,37 @@ export async function createNotification(
     type?: NotificationType;
   }
 ) {
+  const type = input.type ?? "system";
+
+  // Prefer SECURITY DEFINER RPC (bypasses profiles RLS that break insert policies)
+  const { data: rpcData, error: rpcError } = await supabase.rpc(
+    "create_user_notification",
+    {
+      p_user_id: input.userId,
+      p_title: input.title,
+      p_message: input.message,
+      p_type: type,
+    }
+  );
+
+  if (!rpcError && rpcData) {
+    return (Array.isArray(rpcData) ? rpcData[0] : rpcData) as Notification;
+  }
+
+  if (rpcError) {
+    console.error(
+      "create_user_notification RPC failed, trying direct insert:",
+      rpcError.message
+    );
+  }
+
   const { data, error } = await supabase
     .from("notifications")
     .insert({
       user_id: input.userId,
       title: input.title,
       message: input.message,
-      type: input.type ?? "system",
+      type,
       is_read: false,
     })
     .select("*")

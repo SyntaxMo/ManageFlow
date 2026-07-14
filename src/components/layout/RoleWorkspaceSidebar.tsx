@@ -8,6 +8,7 @@ import { getInitials } from "@/lib/dashboard/helpers";
 import type { Profile } from "@/lib/db/types";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+import { BrandMark } from "@/components/brand/BrandMark";
 
 export type RoleWorkspaceNavItem = {
   href: string;
@@ -47,23 +48,16 @@ export function RoleWorkspaceSidebar({
     <aside
       className={cn(
         "fixed inset-y-0 left-0 z-50 flex w-[232px] flex-col bg-primary text-white transition-transform duration-200",
-        open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        open ? "translate-x-0" : "-translate-x-full"
       )}
     >
       <div className="border-b border-white/10 px-5 py-5">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white/15 text-xs font-bold">
-            MF
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">ManageFlow</p>
-            <p className="truncate text-xs text-white/70">{teamName}</p>
-            <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-medium text-white/90">
-              <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
-              {roleBadgeLabel}
-            </span>
-          </div>
-        </div>
+        <BrandMark inverted size={36} />
+        <p className="mt-3 truncate text-xs text-white/70">{teamName}</p>
+        <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-medium text-white/90">
+          <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
+          {roleBadgeLabel}
+        </span>
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-4">

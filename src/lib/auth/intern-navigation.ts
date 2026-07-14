@@ -2,10 +2,10 @@ import type { LucideIcon } from "lucide-react";
 import {
   CalendarDays,
   FileText,
+  FolderKanban,
   LayoutDashboard,
   ListTodo,
   UserCheck,
-  Users,
 } from "lucide-react";
 import { isAccountActive } from "@/lib/db/status";
 
@@ -24,6 +24,7 @@ export function getInternNavItems(status: string): InternNavItem[] {
 
   if (isActive) {
     items.push(
+      { href: "/dashboard/projects", label: "Projects", icon: FolderKanban },
       { href: "/dashboard/reports", label: "Daily Reports", icon: FileText },
       { href: "/dashboard/task-sheet", label: "Task Sheet", icon: ListTodo },
       {
@@ -31,8 +32,7 @@ export function getInternNavItems(status: string): InternNavItem[] {
         label: "Schedule & Timeline",
         icon: CalendarDays,
       },
-      { href: "/dashboard/attendance", label: "Attendance", icon: UserCheck },
-      { href: "/dashboard/team", label: "Team Members", icon: Users }
+      { href: "/dashboard/attendance", label: "Attendance", icon: UserCheck }
     );
   }
 

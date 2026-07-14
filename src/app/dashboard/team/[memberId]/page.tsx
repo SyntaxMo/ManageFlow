@@ -11,11 +11,17 @@ import { Suspense } from "react";
 async function TeamMemberDetailContent({
   managerId,
   memberId,
+  managerTeamId,
 }: {
   managerId: string;
   memberId: string;
+  managerTeamId: string | null;
 }) {
-  const detail = await getPmTeamMemberDetailData(managerId, memberId);
+  const detail = await getPmTeamMemberDetailData(
+    managerId,
+    memberId,
+    managerTeamId
+  );
 
   if (!detail) {
     notFound();
@@ -31,6 +37,7 @@ async function TeamMemberDetailContent({
       scheduleBlocks={detail.scheduleBlocks}
       assignedProjects={detail.assignedProjects}
       availableProjects={detail.availableProjects}
+      taskSheetData={detail.taskSheetData}
     />
   );
 }
@@ -75,6 +82,7 @@ export default async function TeamMemberDetailPage({
         <TeamMemberDetailContent
           managerId={profile.id}
           memberId={memberId}
+          managerTeamId={profile.team_id}
         />
       </Suspense>
     </ProjectManagerShell>

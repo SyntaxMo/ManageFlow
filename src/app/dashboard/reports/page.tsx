@@ -77,7 +77,11 @@ export default async function ReportsPage({
         ? params.date
         : getLocalDateString();
 
-    const reportsData = await getPmDailyReportsData(profile.id, selectedDate);
+    const reportsData = await getPmDailyReportsData(
+      profile.id,
+      selectedDate,
+      profile.team_id
+    );
 
     return (
       <ProjectManagerShell profile={profileWithTeam}>
@@ -94,6 +98,7 @@ export default async function ReportsPage({
           profile={profileWithTeam}
           todayReport={reportsPage.todayReport}
           todayFile={reportsPage.todayFile}
+          todayTasks={reportsPage.todayTasks}
           teamRows={reportsPage.teamRows}
         />
       </InternShell>

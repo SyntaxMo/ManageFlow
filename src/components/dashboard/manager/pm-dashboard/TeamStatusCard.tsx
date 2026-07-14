@@ -71,7 +71,7 @@ export function TeamStatusCard({ teamName, members }: TeamStatusCardProps) {
           {members.map(({ member, attendanceLabel, reportLabel }) => (
             <Link
               key={member.id}
-              href="/dashboard/team"
+              href={`/dashboard/team/${member.id}`}
               className="min-h-[100px] rounded-[12px] border border-border bg-background px-4 py-3 transition-colors hover:bg-white"
             >
               <div className="flex items-center gap-3">

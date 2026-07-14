@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { BrandMark } from "@/components/brand/BrandMark";
 
 function goToDashboard() {
   window.location.assign("/dashboard");
@@ -124,8 +125,8 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <Link href="/" className="text-2xl font-bold text-primary">
-            ManageFlow
+          <Link href="/" className="inline-flex justify-center">
+            <BrandMark size={44} className="justify-center" />
           </Link>
           <p className="mt-2 text-sm text-muted">Sign in to your account</p>
         </div>

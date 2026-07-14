@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, Circle, Clock3, Mail } from "lucide-react";
+import { ArrowLeft, Check, Circle, Clock3, ListTodo, Mail, Plus } from "lucide-react";
 import type { PmTeamMemberCard } from "@/lib/data/pm-team-members";
+import type { PmTaskSheetData } from "@/lib/data/pm-task-sheet";
 import type { WorkSchedule, WorkScheduleBlock, Project } from "@/lib/db/types";
 import { DAY_LABELS } from "@/lib/db/types";
 import type { AttendanceDisplayLabel } from "@/lib/attendance/pm-attendance";
@@ -23,6 +24,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { SetInternScheduleModal } from "@/components/dashboard/manager/pm-team-members/SetInternScheduleModal";
 import { InternProjectsPanel } from "@/components/dashboard/manager/pm-team-members/InternProjectsPanel";
+import { TaskFormModal } from "@/components/dashboard/manager/pm-task-sheet/TaskFormModal";
 
 interface PmTeamMemberDetailViewProps {
   memberCard: PmTeamMemberCard;
@@ -33,6 +35,7 @@ interface PmTeamMemberDetailViewProps {
   scheduleBlocks: WorkScheduleBlock[];
   assignedProjects: Project[];
   availableProjects: Project[];
+  taskSheetData: PmTaskSheetData;
 }
 
 function getAttendanceBadgeClass(label: AttendanceDisplayLabel) {
@@ -59,6 +62,7 @@ export function PmTeamMemberDetailView({
   scheduleBlocks,
   assignedProjects,
   availableProjects,
+  taskSheetData,
 }: PmTeamMemberDetailViewProps) {
   const router = useRouter();
   const { member, attendanceLabel, absencePercentage, absentDays, todayTasks } =
@@ -67,6 +71,7 @@ export function PmTeamMemberDetailView({
   const taskSummary = buildTaskSummary(todayTasks);
   const absenceTone = getAbsenceBarTone(absencePercentage);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -80,11 +85,11 @@ export function PmTeamMemberDetailView({
   return (
     <div>
       <Link
-        href="/dashboard/team"
+        href="/dashboard/projects"
         className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to Team Members
+        Back to Projects
       </Link>
 
       <section className="rounded-[12px] border border-border bg-white p-5">
@@ -248,60 +253,103 @@ export function PmTeamMemberDetailView({
           </div>
         </div>
 
-        <div className="mt-6">
-          <h2 className="text-sm font-semibold text-ink">Tasks for {today}</h2>
-          {tasksLoadState === "error" ? (
-            <p className="mt-3 text-sm text-muted">Task data unavailable.</p>
-          ) : sortedTasks.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">No tasks for today.</p>
-          ) : (
-            <ul className="mt-3 space-y-3">
-              {sortedTasks.map((task) => {
-                const done = isTaskDoneForDisplay(task);
-                const approved = isTaskApproved(task);
+        <div className="mt-6 overflow-hidden rounded-[12px] border border-border">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-deep px-4 py-4 text-white sm:px-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-white/15">
+                <ListTodo className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/65">
+                  Assigned tasks
+                </p>
+                <p className="truncate text-base font-semibold">
+                  Tasks for {today}
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              onClick={() => setTaskFormOpen(true)}
+              disabled={taskSheetData.projects.length === 0}
+              className="w-full bg-white text-deep hover:bg-white/90 sm:w-auto"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add task
+            </Button>
+          </div>
 
-                return (
-                  <li
-                    key={task.id}
-                    className="flex items-start gap-3 rounded-[10px] border border-border bg-background px-4 py-3"
-                  >
-                    <span
+          <div className="bg-white px-4 py-4 sm:px-5">
+            {taskSheetData.projects.length === 0 && (
+              <p className="mb-3 text-sm text-amber-700">
+                Create a project first so you can assign tasks to this intern.
+              </p>
+            )}
+            {tasksLoadState === "error" ? (
+              <p className="text-sm text-muted">Task data unavailable.</p>
+            ) : sortedTasks.length === 0 ? (
+              <p className="text-sm text-muted">
+                No tasks for today. Add a task to assign work to this intern.
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {sortedTasks.map((task) => {
+                  const done = isTaskDoneForDisplay(task);
+                  const approved = isTaskApproved(task);
+
+                  return (
+                    <li
+                      key={task.id}
                       className={cn(
-                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                        "flex items-start gap-3 rounded-[10px] border px-4 py-3",
                         done
-                          ? "border-primary bg-primary text-white"
-                          : "border-amber-400 bg-white text-amber-500"
+                          ? "border-emerald-200 bg-emerald-50"
+                          : "border-border bg-background"
                       )}
                     >
-                      {done ? (
-                        <Check className="h-3 w-3" aria-hidden="true" />
-                      ) : (
-                        <Circle className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p
+                      <span
                         className={cn(
-                          "text-sm font-medium text-ink",
-                          done && "text-muted line-through"
+                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                          done
+                            ? "border-emerald-600 bg-emerald-600 text-white"
+                            : "border-amber-400 bg-white text-amber-500"
                         )}
                       >
-                        {task.title}
-                      </p>
-                      {task.description && (
-                        <p className="mt-1 text-xs text-muted">{task.description}</p>
-                      )}
-                    </div>
-                    {approved && (
-                      <span className="shrink-0 text-xs font-semibold text-emerald-600">
-                        ✓ Approved
+                        {done ? (
+                          <Check className="h-3 w-3" aria-hidden="true" />
+                        ) : (
+                          <Circle
+                            className="h-2.5 w-2.5 fill-current"
+                            aria-hidden="true"
+                          />
+                        )}
                       </span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={cn(
+                            "text-sm font-medium text-ink",
+                            done && "text-emerald-800"
+                          )}
+                        >
+                          {task.title}
+                        </p>
+                        {task.description && (
+                          <p className="mt-1 text-xs text-muted">
+                            {task.description}
+                          </p>
+                        )}
+                      </div>
+                      {approved && (
+                        <span className="shrink-0 text-xs font-semibold text-emerald-600">
+                          ✓ Approved
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </div>
       </section>
 
@@ -320,6 +368,19 @@ export function PmTeamMemberDetailView({
           setToast(message);
           router.refresh();
         }}
+      />
+
+      <TaskFormModal
+        open={taskFormOpen}
+        onClose={() => setTaskFormOpen(false)}
+        data={taskSheetData}
+        defaultInternId={member.id}
+        lockIntern
+        onSuccess={(message) => {
+          setToast(message);
+          router.refresh();
+        }}
+        onError={(message) => setToast(message)}
       />
 
       {toast && (

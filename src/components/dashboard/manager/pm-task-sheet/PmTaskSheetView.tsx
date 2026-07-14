@@ -2,15 +2,15 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, Plus, Square } from "lucide-react";
+import { CalendarDays, Plus } from "lucide-react";
 import type { PmTaskSheetData } from "@/lib/data/pm-task-sheet";
 import { getInitials } from "@/lib/dashboard/helpers";
-import { approveTask } from "@/lib/task-sheet/actions";
+import { approveTaskCarryOver } from "@/lib/task-sheet/actions";
 import {
-  canApproveTask,
+  canApproveCarryOver,
   getTaskStatusBadgeClass,
   getTaskStatusLabel,
-  isTaskApproved,
+  hasIncompleteReason,
 } from "@/lib/task-sheet/task-sheet";
 import { TaskFormModal } from "@/components/dashboard/manager/pm-task-sheet/TaskFormModal";
 import { Button } from "@/components/ui/Button";
@@ -29,7 +29,7 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
   const router = useRouter();
   const [toast, setToast] = useState<string | null>(null);
   const [errorToast, setErrorToast] = useState<string | null>(null);
-  const [approvingTaskId, setApprovingTaskId] = useState<string | null>(null);
+  const [carryingTaskId, setCarryingTaskId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [defaultInternId, setDefaultInternId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -58,20 +58,20 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
     setFormOpen(true);
   }
 
-  function handleApprove(taskId: string) {
-    if (approvingTaskId || isPending) return;
+  function handleCarryOver(taskId: string) {
+    if (carryingTaskId || isPending) return;
 
-    setApprovingTaskId(taskId);
+    setCarryingTaskId(taskId);
     startTransition(async () => {
-      const result = await approveTask(taskId);
-      setApprovingTaskId(null);
+      const result = await approveTaskCarryOver(taskId);
+      setCarryingTaskId(null);
 
       if (!result.success) {
         setErrorToast(result.error);
         return;
       }
 
-      setToast("Task approved successfully.");
+      setToast("Task moved to the next day.");
       router.refresh();
     });
   }
@@ -118,7 +118,7 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
         <div>
           <h1 className="text-2xl font-bold text-ink sm:text-[28px]">Task Sheet</h1>
           <p className="mt-1 text-sm text-muted">
-            Approve team tasks based on daily reports
+            Track team tasks — completed or still in progress
           </p>
         </div>
 
@@ -150,18 +150,10 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
       </div>
 
       {data.loadState === "loaded" && (
-        <section className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <section className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <article className="rounded-[12px] border border-emerald-200 bg-emerald-50 px-5 py-4">
-            <p className="text-3xl font-bold text-emerald-700">{data.stats.approved}</p>
-            <p className="mt-1 text-sm font-medium text-emerald-700/80">Approved</p>
-          </article>
-          <article className="rounded-[12px] border border-amber-200 bg-amber-50 px-5 py-4">
-            <p className="text-3xl font-bold text-amber-700">
-              {data.stats.pendingApproval}
-            </p>
-            <p className="mt-1 text-sm font-medium text-amber-700/80">
-              Pending Approval
-            </p>
+            <p className="text-3xl font-bold text-emerald-700">{data.stats.completed}</p>
+            <p className="mt-1 text-sm font-medium text-emerald-700/80">Completed</p>
           </article>
           <article className="rounded-[12px] border border-border bg-[#E8EEF8] px-5 py-4">
             <p className="text-3xl font-bold text-primary">{data.stats.inProgress}</p>
@@ -217,7 +209,7 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
                     </div>
                   </div>
                   <p className="text-xs font-medium text-muted">
-                    {group.approvedCount}/{group.tasks.length} approved
+                    {group.completedCount}/{group.tasks.length} completed
                   </p>
                 </div>
 
@@ -227,7 +219,7 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
                   </div>
                 ) : (
                   <>
-                    <div className="hidden border-b border-border bg-background/60 px-4 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_120px_140px] sm:gap-4 sm:px-5">
+                    <div className="hidden border-b border-border bg-background/60 px-4 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_120px_160px] sm:gap-4 sm:px-5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
                         Task
                       </p>
@@ -235,26 +227,31 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
                         Status
                       </p>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                        PM Approved
+                        Carry over
                       </p>
                     </div>
 
                     <ul>
                       {group.tasks.map((task) => {
-                        const approved = isTaskApproved(task);
-                        const approvable = canApproveTask(task);
-                        const loading = approvingTaskId === task.id && isPending;
+                        const incomplete = hasIncompleteReason(task);
+                        const canCarry = canApproveCarryOver(task);
+                        const loading = carryingTaskId === task.id && isPending;
 
                         return (
                           <li
                             key={task.id}
-                            className="border-b border-border px-4 py-4 last:border-b-0 sm:grid sm:grid-cols-[minmax(0,1fr)_120px_140px] sm:items-center sm:gap-4 sm:px-5"
+                            className="border-b border-border px-4 py-4 last:border-b-0 sm:grid sm:grid-cols-[minmax(0,1fr)_120px_160px] sm:items-center sm:gap-4 sm:px-5"
                           >
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-ink">{task.title}</p>
                               {task.description && (
                                 <p className="mt-1 line-clamp-2 text-xs text-muted">
                                   {task.description}
+                                </p>
+                              )}
+                              {incomplete && (
+                                <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+                                  Couldn’t finish: {task.incomplete_reason}
                                 </p>
                               )}
                               <div className="mt-2 sm:hidden">
@@ -281,31 +278,18 @@ export function PmTaskSheetView({ data }: PmTaskSheetViewProps) {
                             </div>
 
                             <div className="mt-3 sm:mt-0">
-                              {approved ? (
-                                <span className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-medium text-emerald-700 sm:w-auto">
-                                  <Check className="h-4 w-4" aria-hidden="true" />
-                                  Approved
-                                </span>
-                              ) : (
+                              {canCarry ? (
                                 <button
                                   type="button"
-                                  onClick={() => handleApprove(task.id)}
-                                  disabled={!approvable || loading || isPending}
-                                  className={cn(
-                                    "inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:w-auto",
-                                    approvable
-                                      ? "border-border bg-white text-ink hover:bg-background"
-                                      : "cursor-not-allowed border-border bg-background text-muted opacity-60"
-                                  )}
-                                  aria-label={
-                                    approvable
-                                      ? `Approve ${task.title}`
-                                      : `${task.title} is not eligible for approval`
-                                  }
+                                  onClick={() => handleCarryOver(task.id)}
+                                  disabled={loading || isPending}
+                                  className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-border bg-white px-3 text-sm font-medium text-ink transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-60 sm:w-auto"
+                                  aria-label={`Keep ${task.title} until tomorrow`}
                                 >
-                                  <Square className="h-4 w-4" aria-hidden="true" />
-                                  {loading ? "Approving..." : "Approve"}
+                                  {loading ? "Saving..." : "Keep until tomorrow"}
                                 </button>
+                              ) : (
+                                <span className="text-xs text-muted">—</span>
                               )}
                             </div>
                           </li>

@@ -25,8 +25,7 @@ export type PmTaskSheetData = {
   interns: Profile[];
   groups: PmInternTaskGroup[];
   stats: {
-    approved: number;
-    pendingApproval: number;
+    completed: number;
     inProgress: number;
   };
   loadState: PmTaskSheetLoadState;
@@ -51,7 +50,8 @@ export async function getPmTaskSheetData(
 
   const { interns: internList, error: internsError } = await getPmAssignedInterns(
     supabase,
-    managerId
+    managerId,
+    managerTeamId
   );
 
   if (internsError && internList.length === 0) {
@@ -62,7 +62,7 @@ export async function getPmTaskSheetData(
       teamName: null,
       interns: [],
       groups: [],
-      stats: { approved: 0, pendingApproval: 0, inProgress: 0 },
+      stats: { completed: 0, inProgress: 0 },
       loadState: "interns_error",
       errors: [internsError],
     };
@@ -80,7 +80,7 @@ export async function getPmTaskSheetData(
       teamName: null,
       interns: [],
       groups: [],
-      stats: { approved: 0, pendingApproval: 0, inProgress: 0 },
+      stats: { completed: 0, inProgress: 0 },
       loadState: "no_interns",
       errors,
     };
@@ -90,14 +90,15 @@ export async function getPmTaskSheetData(
   const { projects, error: projectsError } = await getPmAccessibleProjects(
     supabase,
     managerId,
-    internIds
+    internIds,
+    managerTeamId
   );
 
   if (projectsError) {
     errors.push(projectsError);
   }
 
-  const defaultProject = getDefaultPmProject(projects);
+  const defaultProject = getDefaultPmProject(projects, managerTeamId);
 
   let teamName: string | null = null;
   if (managerTeamId) {
@@ -137,7 +138,7 @@ export async function getPmTaskSheetData(
       teamName,
       interns: internList,
       groups: groupTasksByIntern(internList, []),
-      stats: { approved: 0, pendingApproval: 0, inProgress: 0 },
+      stats: { completed: 0, inProgress: 0 },
       loadState: "loaded",
       errors: [...errors, "We could not load tasks for the selected date."],
     };

@@ -60,7 +60,7 @@ export const SCHEDULE_SLOTS: ScheduleSlotDefinition[] = [
   },
 ];
 
-export const TIMETABLE_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
+export const TIMETABLE_DAY_ORDER = [0, 1, 2, 3, 4, 5, 6] as const;
 
 export const TIMETABLE_DAY_LABELS: Record<number, string> = {
   0: "Sunday",

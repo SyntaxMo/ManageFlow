@@ -10,14 +10,16 @@ import type {
 } from "@/lib/db/types";
 import { getLocalDateString, getLocalDayOfWeek } from "@/lib/db/status";
 import { getPmInternAttendanceStatus } from "@/lib/attendance";
-import { daysBetween, mapAttendanceStatus, mapReportStatus } from "@/lib/dashboard/helpers";
+import { mapAttendanceStatus, mapReportStatus } from "@/lib/dashboard/helpers";
+import { getDaysLeftInWeek } from "@/lib/project/weeks";
+import { getTeamWeekGoal } from "@/lib/goals/team-week-goals";
 import {
   buildInternshipTimeline,
   buildTimelinePreview,
   getCurrentTimelineWeek,
   hasInternshipProjectDates,
 } from "@/lib/timeline/internship-timeline";
-import { isTaskApproved } from "@/lib/task-sheet/task-sheet";
+import { isTaskCompleted } from "@/lib/task-sheet/task-sheet";
 
 export type PmCurrentGoal = {
   weekNumber: number;
@@ -29,7 +31,7 @@ export type PmDashboardStats = {
   reportsSubmitted: number;
   totalInterns: number;
   presentToday: number;
-  tasksApproved: number;
+  tasksCompleted: number;
   totalTasksToday: number;
   meetingsToday: number;
   nextMeetingTitle: string | null;
@@ -76,20 +78,23 @@ function isTaskFinished(status: string) {
 export function buildCurrentGoal(
   project: Project | null,
   milestones: ProjectTimelineItem[],
-  today: string
+  today: string,
+  teamGoalText?: string | null
 ): PmCurrentGoal | null {
   const timeline = buildInternshipTimeline(project, milestones, today);
   const datesConfigured = hasInternshipProjectDates(project);
   const currentWeek = getCurrentTimelineWeek(timeline, datesConfigured);
   if (!currentWeek) return null;
 
+  const fallbackTitle =
+    currentWeek.mainTasks?.trim() ||
+    currentWeek.expectedDeliverables?.trim() ||
+    currentWeek.phase;
+
   return {
     weekNumber: currentWeek.weekNumber,
-    title:
-      currentWeek.mainTasks?.trim() ||
-      currentWeek.expectedDeliverables?.trim() ||
-      currentWeek.phase,
-    daysLeft: Math.max(0, daysBetween(today, currentWeek.weekEnd)),
+    title: teamGoalText?.trim() || fallbackTitle,
+    daysLeft: getDaysLeftInWeek(today, currentWeek.weekEnd),
   };
 }
 
@@ -104,7 +109,7 @@ export function buildTimelineWeeks(
   return {
     weeks: preview.weeks.map((week) => ({
       weekNumber: week.weekNumber,
-      title: week.phase,
+      title: `Week ${week.weekNumber} · ${week.phase}`,
       state: week.state,
     })),
     moreWeeks: preview.moreWeeks,
@@ -141,8 +146,7 @@ export async function getPmDashboardPageData(
     .select("*")
     .eq("manager_id", managerId)
     .in("status", ACTIVE_PROJECT_STATUSES)
-    .order("updated_at", { ascending: false })
-    .limit(1);
+    .order("updated_at", { ascending: false });
 
   let activeProjectLoadState: ActiveProjectLoadState = "not_found";
   let activeProject: Project | null = null;
@@ -151,9 +155,18 @@ export async function getPmDashboardPageData(
     console.error("Failed to load active project:", projectError.message);
     errors.push(projectError.message);
     activeProjectLoadState = "error";
-  } else if (projectRows?.[0]) {
-    activeProject = projectRows[0] as Project;
-    activeProjectLoadState = "loaded";
+  } else {
+    const projects = (projectRows ?? []) as Project[];
+    // Prefer a project on this PM's team so teams stay isolated
+    activeProject =
+      (managerTeamId
+        ? projects.find((project) => project.team_id === managerTeamId)
+        : null) ??
+      projects[0] ??
+      null;
+    if (activeProject) {
+      activeProjectLoadState = "loaded";
+    }
   }
 
   let milestones: ProjectTimelineItem[] = [];
@@ -173,19 +186,36 @@ export async function getPmDashboardPageData(
     }
   }
 
-  const currentGoal = buildCurrentGoal(activeProject, milestones, today);
+  const goalBase = buildCurrentGoal(activeProject, milestones, today);
+  const teamGoalText =
+    managerTeamId && goalBase
+      ? await getTeamWeekGoal(supabase, managerTeamId, goalBase.weekNumber)
+      : null;
+  const currentGoal = goalBase
+    ? {
+        ...goalBase,
+        title: teamGoalText?.trim() || goalBase.title,
+      }
+    : null;
   const { weeks: timelineWeeks, moreWeeks: moreTimelineWeeks } = buildTimelineWeeks(
     activeProject,
     milestones,
     today
   );
 
-  const { data: teamMembers, error: membersError } = await supabase
+  let membersQuery = supabase
     .from("profiles")
     .select("id, full_name, email, role, status, job_title, team_id, manager_id")
     .eq("manager_id", managerId)
+    .eq("role", "intern")
     .eq("status", "active")
     .order("full_name");
+
+  if (managerTeamId) {
+    membersQuery = membersQuery.eq("team_id", managerTeamId);
+  }
+
+  const { data: teamMembers, error: membersError } = await membersQuery;
 
   if (membersError) {
     console.error("Failed to load team members:", membersError.message);
@@ -221,7 +251,7 @@ export async function getPmDashboardPageData(
         reportsSubmitted: 0,
         totalInterns: 0,
         presentToday: 0,
-        tasksApproved: 0,
+        tasksCompleted: 0,
         totalTasksToday: 0,
         meetingsToday: meetings.length,
         nextMeetingTitle: meetings[0]?.title ?? null,
@@ -233,6 +263,18 @@ export async function getPmDashboardPageData(
       teamStatus: [],
       errors,
     };
+  }
+
+  let tasksTodayQuery = supabase
+    .from("tasks")
+    .select("*")
+    .in("assigned_to", memberIds)
+    .eq("due_date", today);
+
+  if (managerTeamId) {
+    tasksTodayQuery = tasksTodayQuery.or(
+      `team_id.eq.${managerTeamId},team_id.is.null`
+    );
   }
 
   const [
@@ -252,11 +294,7 @@ export async function getPmDashboardPageData(
       .select("*")
       .in("user_id", memberIds)
       .eq("report_date", today),
-    supabase
-      .from("tasks")
-      .select("*")
-      .in("assigned_to", memberIds)
-      .eq("due_date", today),
+    tasksTodayQuery,
     supabase
       .from("meeting_requests")
       .select("*")
@@ -338,7 +376,7 @@ export async function getPmDashboardPageData(
     (stat) => stat.attendanceLabel === "Present"
   ).length;
 
-  const tasksApproved = tasksToday.filter((task) => isTaskApproved(task)).length;
+  const tasksCompleted = tasksToday.filter((task) => isTaskCompleted(task)).length;
 
   const memberNameById = new Map(
     members.map((member) => [member.id, member.full_name])
@@ -369,7 +407,7 @@ export async function getPmDashboardPageData(
       reportsSubmitted,
       totalInterns,
       presentToday,
-      tasksApproved,
+      tasksCompleted,
       totalTasksToday: tasksToday.length,
       meetingsToday: meetings.length,
       nextMeetingTitle: meetings[0]?.title ?? null,

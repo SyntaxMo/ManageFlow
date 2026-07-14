@@ -35,6 +35,20 @@ describe("getCurrentProjectWeekNumber", () => {
   it("returns the active week based on elapsed days", () => {
     expect(getCurrentProjectWeekNumber("2026-07-01", "2026-07-15")).toBe(2);
   });
+
+  it("on Tuesday of Week 2 leaves 5 days until Sunday", async () => {
+    const { calculateMondayAlignedWeeks, getDaysLeftInWeek } = await import(
+      "@/lib/project/weeks"
+    );
+    const weeks = calculateMondayAlignedWeeks("2026-06-29");
+    const week2 = weeks.find((week) => week.weekNumber === 2);
+    expect(week2).toEqual({
+      weekNumber: 2,
+      weekStart: "2026-07-13",
+      weekEnd: "2026-07-19",
+    });
+    expect(getDaysLeftInWeek("2026-07-14", week2!.weekEnd)).toBe(5);
+  });
 });
 
 describe("resolveSelectedWeekNumber", () => {
@@ -84,32 +98,38 @@ describe("buildInternshipTimeline", () => {
     expect(timeline).toHaveLength(9);
     expect(timeline[0]?.phase).toBe(INTERNSHIP_TIMELINE_CONTENT[0]?.phase);
     expect(timeline[0]?.status).toBe("current");
+    expect(timeline[0]?.weekStart).toBe("2026-06-29");
+    expect(timeline[0]?.weekEnd).toBe("2026-07-05");
     expect(timeline[4]?.phase).toBe("UI Integration & Polish");
   });
 
-  it("returns the canonical Week 0-8 content without project dates", () => {
-    const timeline = buildInternshipTimeline(null, [], "2026-07-03");
+  it("uses Monday–Sunday cohort weeks and marks Week 2 on Tuesday", () => {
+    const timeline = buildInternshipTimeline(null, [], "2026-07-14");
 
     expect(timeline).toHaveLength(9);
     expect(timeline.map((week) => week.weekNumber)).toEqual([
       0, 1, 2, 3, 4, 5, 6, 7, 8,
     ]);
-    expect(timeline[7]?.phase).toBe("Polish & Integration");
-    expect(timeline.every((week) => week.status === "upcoming")).toBe(true);
-    expect(timeline.every((week) => week.weekStart === "")).toBe(true);
+    expect(timeline[2]?.status).toBe("current");
+    expect(timeline[2]?.phase).toBe("Development");
+    expect(timeline[2]?.weekStart).toBe("2026-07-13");
+    expect(timeline[2]?.weekEnd).toBe("2026-07-19");
+    expect(timeline[0]?.status).toBe("completed");
   });
 });
 
 describe("buildInternshipTimelinePhaseRows", () => {
   it("groups weeks into the canonical internship phases", () => {
-    const timeline = buildInternshipTimeline(null, [], "2026-07-03");
-    const rows = buildInternshipTimelinePhaseRows(timeline, false);
+    const timeline = buildInternshipTimeline(null, [], "2026-07-14");
+    const rows = buildInternshipTimelinePhaseRows(timeline, true);
 
     expect(rows).toHaveLength(INTERNSHIP_TIMELINE_PHASE_GROUPS.length);
     expect(rows[1]?.weekNumbers).toEqual([1, 2, 3]);
     expect(rows[1]?.phase).toBe("Development");
     expect(rows[5]?.weekNumbers).toEqual([7, 8]);
-    expect(rows.every((row) => row.status === null)).toBe(true);
+    expect(rows.find((row) => row.status === "current")?.phase).toBe(
+      "Development"
+    );
   });
 
   it("marks the current phase when project dates exist", () => {
@@ -145,12 +165,14 @@ describe("buildTimelinePreview", () => {
     expect(preview.moreWeeks).toBeGreaterThanOrEqual(0);
   });
 
-  it("shows a neutral preview when project dates are missing", () => {
-    const timeline = buildInternshipTimeline(null, [], "2026-07-22");
-    const preview = buildTimelinePreview(timeline, 6, false);
+  it("shows the current week from the cohort calendar when project dates are missing", () => {
+    const timeline = buildInternshipTimeline(null, [], "2026-07-14");
+    const preview = buildTimelinePreview(timeline, 6, true);
 
     expect(preview.weeks).toHaveLength(6);
-    expect(preview.weeks.every((week) => week.state === "upcoming")).toBe(true);
-    expect(preview.weeks[0]?.weekNumber).toBe(0);
+    expect(preview.weeks.find((week) => week.state === "current")?.weekNumber).toBe(
+      2
+    );
+    expect(preview.weeks[0]?.weekNumber).toBe(2);
   });
 });

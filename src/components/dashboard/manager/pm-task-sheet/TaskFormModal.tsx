@@ -12,6 +12,7 @@ interface TaskFormModalProps {
   onClose: () => void;
   data: PmTaskSheetData;
   defaultInternId?: string | null;
+  lockIntern?: boolean;
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
 }
@@ -30,6 +31,7 @@ export function TaskFormModal({
   onClose,
   data,
   defaultInternId = null,
+  lockIntern = false,
   onSuccess,
   onError,
 }: TaskFormModalProps) {
@@ -109,7 +111,9 @@ export function TaskFormModal({
               Add Task
             </h2>
             <p className="mt-1 text-sm text-muted">
-              Assign a task to one of your interns for the selected date.
+              {lockIntern && defaultInternId
+                ? "Assign a task to this intern."
+                : "Assign a task to one of your interns for the selected date."}
             </p>
           </div>
           <button
@@ -143,19 +147,37 @@ export function TaskFormModal({
               >
                 Assigned Intern
               </label>
-              <select
-                id="task-intern"
-                value={form.assignedTo}
-                onChange={(event) => updateField("assignedTo", event.target.value)}
-                className="h-11 w-full rounded-[10px] border border-border bg-white px-3 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                required
-              >
-                {data.interns.map((intern) => (
-                  <option key={intern.id} value={intern.id}>
-                    {formatInternOptionLabel(intern)}
-                  </option>
-                ))}
-              </select>
+              {lockIntern ? (
+                <Input
+                  id="task-intern"
+                  value={
+                    formatInternOptionLabel(
+                      data.interns.find((intern) => intern.id === form.assignedTo) ??
+                        data.interns[0] ?? {
+                          full_name: "Intern",
+                          job_title: null,
+                          role: "intern",
+                        }
+                    )
+                  }
+                  readOnly
+                  disabled
+                />
+              ) : (
+                <select
+                  id="task-intern"
+                  value={form.assignedTo}
+                  onChange={(event) => updateField("assignedTo", event.target.value)}
+                  className="h-11 w-full rounded-[10px] border border-border bg-white px-3 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  required
+                >
+                  {data.interns.map((intern) => (
+                    <option key={intern.id} value={intern.id}>
+                      {formatInternOptionLabel(intern)}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div>

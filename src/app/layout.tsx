@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ManageFlow",
+  title: "SKRA",
   description:
     "Project and team management for game development teams",
 };

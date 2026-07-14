@@ -87,6 +87,7 @@ async function verifyInternAndProject(
 }
 
 function revalidateAssignmentPaths(internId: string) {
+  revalidatePath("/dashboard/projects");
   revalidatePath("/dashboard/team");
   revalidatePath(`/dashboard/team/${internId}`);
   revalidatePath("/dashboard/schedule");

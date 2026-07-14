@@ -1,10 +1,10 @@
 import type { Task } from "@/lib/db/types";
-import { isTaskApproved, isTaskCompleted } from "@/lib/task-sheet/task-sheet";
+import { isTaskCompleted } from "@/lib/task-sheet/task-sheet";
 
 export const TEAM_MEMBER_TASK_PREVIEW_LIMIT = 3;
 
-export function isTaskDoneForDisplay(task: Pick<Task, "status" | "approval_status">) {
-  return isTaskCompleted(task) || isTaskApproved(task);
+export function isTaskDoneForDisplay(task: Pick<Task, "status">) {
+  return isTaskCompleted(task);
 }
 
 export function sortMemberTasks(tasks: Task[]) {

@@ -5,17 +5,29 @@ export function isTaskApproved(task: Pick<Task, "approval_status">) {
 }
 
 export function isTaskCompleted(task: Pick<Task, "status">) {
-  return task.status === "done";
+  return task.status === "done" || task.status === "completed";
 }
 
 export function isTaskInProgress(task: Pick<Task, "status">) {
   return task.status === "in_progress";
 }
 
+export function hasIncompleteReason(task: Pick<Task, "incomplete_reason" | "status">) {
+  return Boolean(task.incomplete_reason?.trim()) && !isTaskCompleted(task);
+}
+
+export function canApproveCarryOver(
+  task: Pick<Task, "incomplete_reason" | "status" | "due_date">
+) {
+  return hasIncompleteReason(task);
+}
+
+/** @deprecated Approval flow removed — use isTaskCompleted */
 export function isPendingApproval(task: Pick<Task, "status" | "approval_status">) {
   return isTaskCompleted(task) && !isTaskApproved(task);
 }
 
+/** @deprecated Approval flow removed */
 export function canApproveTask(task: Pick<Task, "status" | "approval_status">) {
   return isTaskCompleted(task) && !isTaskApproved(task);
 }
@@ -23,13 +35,17 @@ export function canApproveTask(task: Pick<Task, "status" | "approval_status">) {
 export function getTaskStatusLabel(status: string) {
   switch (status) {
     case "done":
+    case "completed":
       return "Completed";
     case "in_progress":
       return "In Progress";
+    case "to_do":
     case "todo":
       return "Not Started";
     case "blocked":
       return "Blocked";
+    case "review":
+      return "In Review";
     case "delayed":
       return "Delayed";
     default:
@@ -40,6 +56,7 @@ export function getTaskStatusLabel(status: string) {
 export function getTaskStatusBadgeClass(status: string) {
   switch (status) {
     case "done":
+    case "completed":
       return "bg-emerald-50 text-emerald-700";
     case "in_progress":
       return "bg-amber-50 text-amber-700";
@@ -94,8 +111,8 @@ export function getPriorityLabel(priority: string | null) {
   }
 }
 
-export function isTaskCountedAsDone(task: Pick<Task, "status" | "approval_status">) {
-  return isTaskCompleted(task) || isTaskApproved(task);
+export function isTaskCountedAsDone(task: Pick<Task, "status">) {
+  return isTaskCompleted(task);
 }
 
 export function sortTasksForDisplay(tasks: Task[]) {
@@ -112,28 +129,24 @@ export function sortTasksForDisplay(tasks: Task[]) {
   });
 }
 
-export function canDeleteTask(task: Pick<Task, "status" | "approval_status" | "created_by">) {
+export function canDeleteTask(task: Pick<Task, "status" | "created_by">) {
   return Boolean(task.created_by);
 }
 
-export function requiresDeleteConfirmation(
-  task: Pick<Task, "status" | "approval_status">
-) {
-  return isTaskCompleted(task) || isTaskApproved(task);
+export function requiresDeleteConfirmation(task: Pick<Task, "status">) {
+  return isTaskCompleted(task);
 }
 
 export type PmInternTaskGroup = {
   intern: Profile;
   tasks: Task[];
-  approvedCount: number;
   completedCount: number;
 };
 
 export function buildTaskSheetStats(tasks: Task[]) {
   return {
-    approved: tasks.filter(isTaskApproved).length,
-    pendingApproval: tasks.filter(isPendingApproval).length,
-    inProgress: tasks.filter(isTaskInProgress).length,
+    completed: tasks.filter(isTaskCompleted).length,
+    inProgress: tasks.filter((task) => !isTaskCompleted(task)).length,
   };
 }
 
@@ -145,12 +158,10 @@ export function groupTasksByIntern(
     const internTasks = sortTasksForDisplay(
       tasks.filter((task) => task.assigned_to === intern.id)
     );
-    const approvedCount = internTasks.filter(isTaskApproved).length;
     const completedCount = internTasks.filter(isTaskCompleted).length;
     return {
       intern,
       tasks: internTasks,
-      approvedCount,
       completedCount,
     };
   });

@@ -9,12 +9,13 @@ import {
   FileText,
   RefreshCw,
 } from "lucide-react";
-import type { DailyReport, Profile, ReportFile } from "@/lib/db/types";
+import type { DailyReport, Profile, ReportFile, Task } from "@/lib/db/types";
 import { getLocalDateString, formatDate, formatTime } from "@/lib/db/status";
 import { getInitials } from "@/lib/dashboard/helpers";
 import { downloadDailyReportDocument } from "@/lib/reports/download-document";
 import { DailyReportTemplateButton } from "@/components/dashboard/intern/DailyReportTemplateButton";
 import { InternDailyReportUploadPanel } from "@/components/dashboard/intern/InternDailyReportUploadPanel";
+import { PostReportTaskCheckModal } from "@/components/dashboard/intern/PostReportTaskCheckModal";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ interface InternDailyReportsViewProps {
   profile: Profile;
   todayReport: DailyReport | null;
   todayFile: ReportFile | null;
+  todayTasks: Task[];
   teamRows: Array<{
     member: Profile;
     submitted: boolean;
@@ -33,6 +35,7 @@ export function InternDailyReportsView({
   profile,
   todayReport,
   todayFile,
+  todayTasks,
   teamRows,
 }: InternDailyReportsViewProps) {
   const router = useRouter();
@@ -41,6 +44,7 @@ export function InternDailyReportsView({
   const [errorToast, setErrorToast] = useState<string | null>(null);
   const [replaceMode, setReplaceMode] = useState(false);
   const [downloadLoading, setDownloadLoading] = useState(false);
+  const [taskCheckOpen, setTaskCheckOpen] = useState(false);
 
   const isSubmitted = Boolean(todayReport);
   const submissionTimestamp =
@@ -83,11 +87,7 @@ export function InternDailyReportsView({
 
   function handleUploadSuccess() {
     setReplaceMode(false);
-    setToast(
-      replaceMode
-        ? "Your daily report was replaced successfully."
-        : "Your daily report was submitted successfully."
-    );
+    setTaskCheckOpen(true);
     router.refresh();
   }
 
@@ -257,6 +257,17 @@ export function InternDailyReportsView({
       <p className="mt-3 text-xs text-muted">
         Signed in as {profile.full_name}
       </p>
+
+      <PostReportTaskCheckModal
+        open={taskCheckOpen}
+        tasks={todayTasks}
+        onClose={() => setTaskCheckOpen(false)}
+        onDone={(message) => {
+          setToast(message);
+          router.refresh();
+        }}
+        onError={setErrorToast}
+      />
     </div>
   );
 }

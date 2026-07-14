@@ -144,6 +144,7 @@ function revalidateSchedulePaths() {
   revalidatePath("/dashboard/schedule");
   revalidatePath("/dashboard/attendance");
   revalidatePath("/dashboard/team");
+  revalidatePath("/dashboard/projects");
   revalidatePath("/dashboard");
 }
 

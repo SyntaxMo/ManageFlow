@@ -30,9 +30,6 @@ function TaskLine({ task }: { task: Task }) {
       <span className={cn("text-ink", done && "text-primary line-through")}>
         {task.title}
       </span>
-      {task.approval_status === "approved" && done && (
-        <span className="ml-auto shrink-0 text-emerald-700">✓ Approved</span>
-      )}
     </li>
   );
 }

@@ -87,8 +87,8 @@ export async function InternDashboard({ profile }: { profile: Profile }) {
             id: task.id,
             title: task.title,
             status: task.status,
-            approvalStatus: task.approval_status,
             dueDate: task.due_date,
+            createdAt: task.created_at,
             href: "/dashboard/task-sheet",
           }))}
         />

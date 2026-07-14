@@ -6,13 +6,13 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   InternScheduleForm,
-  MIN_WEEKLY_HOURS,
   type ScheduleBlock,
 } from "@/components/forms/InternScheduleForm";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { BrandMark } from "@/components/brand/BrandMark";
 import { cn } from "@/lib/utils";
 import { DEV_FAST_AUTH } from "@/config/development";
 import type { Team, University } from "@/lib/db/types";
@@ -446,10 +446,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (isIntern && (!isScheduleValid || totalHours < MIN_WEEKLY_HOURS)) {
-      setError(
-        `Your weekly schedule must be at least ${MIN_WEEKLY_HOURS} hours.`
-      );
+    if (isIntern && !isScheduleValid) {
+      setError("Add at least one working day to your schedule.");
       return;
     }
 
@@ -595,7 +593,6 @@ export default function RegisterPage() {
     (!requiresTeam || (Boolean(teamId) && !teamsError && !teamsLoading)) &&
     (!isIntern ||
       (isScheduleValid &&
-        totalHours >= MIN_WEEKLY_HOURS &&
         (!isUniversityRequirement ||
           (!universitiesError &&
             !universitiesLoading &&
@@ -611,8 +608,8 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-background px-4 py-10">
       <div className="mx-auto w-full max-w-2xl">
         <div className="mb-8 text-center">
-          <Link href="/" className="text-2xl font-bold text-primary">
-            ManageFlow
+          <Link href="/" className="inline-flex justify-center">
+            <BrandMark size={44} className="justify-center" />
           </Link>
           <p className="mt-2 text-sm text-muted">Create your account</p>
         </div>
@@ -621,8 +618,8 @@ export default function RegisterPage() {
           <CardHeader>
             <CardTitle>Register</CardTitle>
             <CardDescription>
-              Set up your account. Interns must also submit a weekly schedule
-              of at least 32 hours.
+              Set up your account. Interns must also submit a weekly work
+              schedule (32 hours per week recommended).
             </CardDescription>
           </CardHeader>
 

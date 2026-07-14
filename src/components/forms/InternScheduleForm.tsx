@@ -88,7 +88,7 @@ export function InternScheduleForm({
   disabled = false,
   initialBlocks,
   title = "Weekly Schedule",
-  description = "Select your working days and set start/end times. New days copy the latest time range. Minimum 32 hours per week required.",
+  description = "Select your working days and set start/end times. New days copy the latest time range. 32 hours per week is recommended.",
 }: InternScheduleFormProps) {
   const [schedules, setSchedules] = useState<Record<number, DaySchedule>>(() =>
     buildInitialSchedules(initialBlocks)
@@ -104,7 +104,7 @@ export function InternScheduleForm({
     }
   );
 
-  const { blocks, totalHours, isValid } = useMemo(() => {
+  const { blocks, totalHours, isValid, meetsRecommendedHours } = useMemo(() => {
     const result: ScheduleBlock[] = [];
 
     for (const day of DAYS) {
@@ -123,9 +123,15 @@ export function InternScheduleForm({
     }
 
     const total = result.reduce((sum, block) => sum + block.calculated_hours, 0);
-    const valid = total >= MIN_WEEKLY_HOURS && result.length > 0;
+    const canSave = result.length > 0;
+    const recommended = total >= MIN_WEEKLY_HOURS;
 
-    return { blocks: result, totalHours: total, isValid: valid };
+    return {
+      blocks: result,
+      totalHours: total,
+      isValid: canSave,
+      meetsRecommendedHours: recommended,
+    };
   }, [schedules]);
 
   useEffect(() => {
@@ -277,7 +283,7 @@ export function InternScheduleForm({
       <div
         className={cn(
           "rounded-lg border p-4",
-          isValid
+          meetsRecommendedHours
             ? "border-emerald-200 bg-emerald-50"
             : "border-amber-200 bg-amber-50"
         )}
@@ -287,15 +293,16 @@ export function InternScheduleForm({
           <span
             className={cn(
               "text-lg font-bold",
-              isValid ? "text-emerald-700" : "text-amber-700"
+              meetsRecommendedHours ? "text-emerald-700" : "text-amber-700"
             )}
           >
             {totalHours.toFixed(1)} / {MIN_WEEKLY_HOURS} hrs
           </span>
         </div>
-        {!isValid && (
+        {!meetsRecommendedHours && (
           <p className="mt-2 text-sm text-amber-700">
-            Your schedule must total at least {MIN_WEEKLY_HOURS} hours per week.
+            Recommended: at least {MIN_WEEKLY_HOURS} hours per week. You can still
+            save a shorter schedule.
           </p>
         )}
       </div>

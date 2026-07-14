@@ -37,7 +37,7 @@ export async function ProjectManagerDashboard({
         activeProject={data.activeProject}
         activeProjectLoadState={data.activeProjectLoadState}
       />
-      <CurrentGoalBanner currentGoal={data.currentGoal} />
+      <CurrentGoalBanner currentGoal={data.currentGoal} editable />
 
       <DashboardStatsGrid>
         <DashboardStatCard
@@ -54,8 +54,8 @@ export async function ProjectManagerDashboard({
         />
         <DashboardStatCard
           icon={Clock3}
-          label="Tasks Approved"
-          value={`${data.stats.tasksApproved}/${data.stats.totalTasksToday}`}
+          label="Tasks Completed"
+          value={`${data.stats.tasksCompleted}/${data.stats.totalTasksToday}`}
           description="Out of today's tasks"
         />
         <DashboardStatCard

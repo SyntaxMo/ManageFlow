@@ -20,16 +20,22 @@ export type CheckInStatus =
   | "absent"
   | "missed_checkout";
 export type TaskStatus =
+  | "to_do"
   | "todo"
   | "in_progress"
   | "done"
+  | "completed"
   | "blocked"
+  | "review"
   | "delayed";
 
 export type TaskApprovalStatus =
   | "pending"
+  | "submitted"
+  | "under_review"
   | "approved"
   | "rejected"
+  | "needs_changes"
   | "not_required";
 
 export type Profile = {
@@ -224,7 +230,12 @@ export type Task = {
   priority: TaskPriority | string | null;
   due_date: string | null;
   progress: number | null;
+  created_at?: string | null;
+  /** Set when intern reports they could not finish after daily report submit. */
+  incomplete_reason?: string | null;
 };
+
+export type ProjectJoinRequestStatus = "pending" | "accepted" | "declined";
 
 export type Project = {
   id: string;
@@ -232,12 +243,30 @@ export type Project = {
   description: string | null;
   manager_id: string | null;
   team_lead_id: string | null;
+  team_id?: string | null;
   status: string;
   priority: string;
   progress: number;
   start_date: string | null;
   deadline: string | null;
   profiles?: { full_name: string } | null;
+  teams?: { name: string } | null;
+};
+
+export type ProjectJoinRequest = {
+  id: string;
+  intern_id: string;
+  project_id: string;
+  pm_id: string;
+  team_id: string;
+  status: ProjectJoinRequestStatus | string;
+  created_at: string;
+  updated_at: string;
+  decided_at: string | null;
+  intern?: Pick<Profile, "id" | "full_name" | "email" | "job_title" | "avatar_url"> | null;
+  project?: Pick<Project, "id" | "name" | "status"> | null;
+  pm?: Pick<Profile, "id" | "full_name" | "email" | "job_title"> | null;
+  team?: { id: string; name: string } | null;
 };
 
 export type ProjectTimelineItem = {

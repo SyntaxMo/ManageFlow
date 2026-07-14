@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Ethnocentric";
+  src: url("/fonts/Ethnocentric-Regular.otf") format("opentype");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --primary-blue: #082f93;
   --background-light: #f4f8f9;
@@ -27,6 +35,15 @@ body {
   font-family: Inter, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.font-brand {
+  font-family: "Ethnocentric", Impact, Haettenschweiler, "Arial Narrow Bold",
+    sans-serif;
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 a {

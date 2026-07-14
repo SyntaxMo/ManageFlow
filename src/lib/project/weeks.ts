@@ -19,6 +19,40 @@ export function addDaysToIsoDate(isoDate: string, days: number) {
   return formatUtcDate(date);
 }
 
+/** Snap a date back to the Monday of its calendar week (Mon–Sun). */
+export function getMondayOnOrBefore(isoDate: string) {
+  const date = parseIsoDate(isoDate);
+  const day = date.getUTCDay(); // 0 = Sunday … 6 = Saturday
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  date.setUTCDate(date.getUTCDate() - daysFromMonday);
+  return formatUtcDate(date);
+}
+
+/**
+ * Build Week 0…N as consecutive Mon–Sun ranges from a start date
+ * (start is snapped to Monday if needed).
+ */
+export function calculateMondayAlignedWeeks(
+  startDate: string,
+  maxWeek = INTERNSHIP_MAX_WEEK,
+  minWeek = INTERNSHIP_MIN_WEEK
+): ProjectWeek[] {
+  const mondayStart = getMondayOnOrBefore(startDate);
+  const weeks: ProjectWeek[] = [];
+
+  for (let weekNumber = minWeek; weekNumber <= maxWeek; weekNumber += 1) {
+    const weekStart = addDaysToIsoDate(mondayStart, weekNumber * 7);
+    const weekEnd = addDaysToIsoDate(weekStart, 6);
+    weeks.push({ weekNumber, weekStart, weekEnd });
+  }
+
+  return weeks;
+}
+
+export function getDaysLeftInWeek(today: string, weekEnd: string) {
+  return Math.max(0, daysBetween(today, weekEnd));
+}
+
 export const INTERNSHIP_MAX_WEEK = 8;
 export const INTERNSHIP_MIN_WEEK = 0;
 

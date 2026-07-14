@@ -49,7 +49,7 @@ async function drawDocument(
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
   let y = 800;
-  page.drawText("ManageFlow", {
+  page.drawText("SKRA", {
     x: 50,
     y,
     size: 12,
@@ -178,5 +178,5 @@ export function getCompletedSummaryFilename(teamName: string, weekNumber: number
 }
 
 export function getBlankTemplateFilename() {
-  return "ManageFlow_Weekly_Summary_Template.pdf";
+  return "SKRA_Weekly_Summary_Template.pdf";
 }

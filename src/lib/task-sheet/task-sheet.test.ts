@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { Task } from "@/lib/db/types";
 import {
   buildTaskSheetStats,
-  canApproveTask,
-  isPendingApproval,
-  isTaskApproved,
+  canApproveCarryOver,
+  hasIncompleteReason,
+  isTaskCompleted,
 } from "@/lib/task-sheet/task-sheet";
 
 function makeTask(overrides: Partial<Task>): Task {
@@ -17,48 +17,48 @@ function makeTask(overrides: Partial<Task>): Task {
     team_id: "team-1",
     created_by: "manager-1",
     status: "done",
-    approval_status: "pending",
+    approval_status: "not_required",
     priority: "medium",
     due_date: "2026-07-12",
     progress: 100,
+    incomplete_reason: null,
     ...overrides,
   };
 }
 
 describe("task sheet stats", () => {
-  it("counts approved, pending approval, and in progress tasks", () => {
+  it("counts completed and in progress tasks", () => {
     const stats = buildTaskSheetStats([
-      makeTask({ id: "1", approval_status: "approved", status: "done" }),
-      makeTask({ id: "2", approval_status: "pending", status: "done" }),
-      makeTask({ id: "3", approval_status: "pending", status: "in_progress" }),
+      makeTask({ id: "1", status: "done" }),
+      makeTask({ id: "2", status: "in_progress" }),
+      makeTask({ id: "3", status: "to_do" }),
     ]);
 
     expect(stats).toEqual({
-      approved: 1,
-      pendingApproval: 1,
-      inProgress: 1,
+      completed: 1,
+      inProgress: 2,
     });
   });
 });
 
-describe("approval eligibility", () => {
-  it("allows approval only for completed unapproved tasks", () => {
-    expect(canApproveTask(makeTask({ status: "done", approval_status: "pending" }))).toBe(
+describe("incomplete carry-over", () => {
+  it("detects incomplete reasons on open tasks", () => {
+    expect(
+      hasIncompleteReason(
+        makeTask({ status: "in_progress", incomplete_reason: "Blocked on assets" })
+      )
+    ).toBe(true);
+    expect(
+      hasIncompleteReason(makeTask({ status: "done", incomplete_reason: "Blocked" }))
+    ).toBe(false);
+    expect(canApproveCarryOver(makeTask({ status: "in_progress", incomplete_reason: "x" }))).toBe(
       true
     );
-    expect(canApproveTask(makeTask({ status: "done", approval_status: "approved" }))).toBe(
-      false
-    );
-    expect(
-      canApproveTask(makeTask({ status: "in_progress", approval_status: "pending" }))
-    ).toBe(false);
   });
 
-  it("identifies pending approval tasks", () => {
-    expect(isPendingApproval(makeTask({ status: "done", approval_status: "pending" }))).toBe(
-      true
-    );
-    expect(isTaskApproved(makeTask({ approval_status: "approved" }))).toBe(true);
+  it("identifies completed tasks", () => {
+    expect(isTaskCompleted(makeTask({ status: "done" }))).toBe(true);
+    expect(isTaskCompleted(makeTask({ status: "in_progress" }))).toBe(false);
   });
 });
 

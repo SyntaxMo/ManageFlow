@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { BrandMark } from "@/components/brand/BrandMark";
 
 const features = [
   {
@@ -40,7 +41,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <span className="text-xl font-bold text-primary">ManageFlow</span>
+          <BrandMark size={40} />
           <div className="flex items-center gap-3">
             <Link href="/login">
               <Button variant="ghost" size="sm">
@@ -56,11 +57,11 @@ export default function HomePage() {
 
       <main>
         <section className="mx-auto max-w-6xl px-6 py-20 text-center">
-          <h1 className="text-4xl font-bold tracking-tight text-ink md:text-5xl">
-            ManageFlow
+          <h1 className="font-brand text-4xl tracking-tight text-primary md:text-5xl">
+            SKRA
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted">
-            ManageFlow brings game development teams, reports, files, tasks,
+            SKRA brings game development teams, reports, files, tasks,
             meetings, and project progress into one clean workspace.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">

@@ -180,6 +180,7 @@ export async function setInternWorkSchedule(
   }
 
   revalidatePath("/dashboard/team");
+  revalidatePath("/dashboard/projects");
   revalidatePath(`/dashboard/team/${intern_id}`);
   revalidatePath("/dashboard/attendance");
   revalidatePath("/dashboard");

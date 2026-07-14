@@ -8,7 +8,7 @@ export function formatReportDownloadContent(
 ) {
   const formData = report.form_data ?? {};
   const lines = [
-    "ManageFlow Daily Report",
+    "SKRA Daily Report",
     "========================",
     "",
     `Member: ${internName}`,

@@ -7,6 +7,7 @@ import type {
   WeeklySummary,
 } from "@/lib/db/types";
 import { findWeekGoal } from "@/lib/weekly-summary/goals";
+import { getTeamWeekGoal } from "@/lib/goals/team-week-goals";
 import { parseTemplateSections } from "@/lib/weekly-summary/template";
 import {
   buildInternshipTimeline,
@@ -83,8 +84,7 @@ export async function getPmWeeklySummaryPageData(
     .select("*")
     .eq("manager_id", managerId)
     .in("status", ACTIVE_PROJECT_STATUSES)
-    .order("updated_at", { ascending: false })
-    .limit(1);
+    .order("updated_at", { ascending: false });
 
   if (projectError) {
     console.error("Failed to load active project:", projectError.message);
@@ -105,7 +105,13 @@ export async function getPmWeeklySummaryPageData(
     };
   }
 
-  const project = (projectRows?.[0] ?? null) as Project | null;
+  const projects = (projectRows ?? []) as Project[];
+  const project =
+    (managerTeamId
+      ? projects.find((item) => item.team_id === managerTeamId)
+      : null) ??
+    projects[0] ??
+    null;
   if (!project) {
     return {
       profile: managerProfile,
@@ -220,11 +226,19 @@ export async function getPmWeeklySummaryPageData(
   );
 
   const selectedGoal = selectedWeek
-    ? findWeekGoal(
+    ? (managerTeamId
+        ? await getTeamWeekGoal(
+            supabase,
+            managerTeamId,
+            selectedWeek.weekNumber
+          )
+        : null) ||
+      findWeekGoal(
         timelineItems,
         selectedWeek.weekStart,
         selectedWeek.weekEnd
-      ) ?? getTimelineWeekGoal(internshipTimeline, selectedWeek.weekNumber)
+      ) ||
+      getTimelineWeekGoal(internshipTimeline, selectedWeek.weekNumber)
     : null;
 
   let summary: WeeklySummary | null = null;

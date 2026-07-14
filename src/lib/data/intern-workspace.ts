@@ -10,21 +10,23 @@ import type {
   WorkScheduleBlock,
 } from "@/lib/db/types";
 import { getLocalDateString, getLocalDayOfWeek, formatTime } from "@/lib/db/status";
-import { daysBetween } from "@/lib/dashboard/helpers";
 import { getInternDashboardData } from "@/lib/data/dashboard";
 import {
-  calculateProjectWeeks,
+  calculateMondayAlignedWeeks,
   getCurrentProjectWeekNumber,
+  getDaysLeftInWeek,
   getWeekByNumber,
   isDateInWeek,
 } from "@/lib/project/weeks";
+import { getTeamWeekGoal } from "@/lib/goals/team-week-goals";
 import {
   buildInternshipTimeline,
   buildTimelinePreview,
   getCurrentTimelineWeek,
   hasInternshipProjectDates,
 } from "@/lib/timeline/internship-timeline";
-import { isTaskApproved, isTaskCompleted, sortTasksForDisplay } from "@/lib/task-sheet/task-sheet";
+import { isTaskCompleted, sortTasksForDisplay } from "@/lib/task-sheet/task-sheet";
+import { INTERNSHIP_COHORT_START_DATE } from "@/config/internship";
 import type {
   ActiveProjectLoadState,
   PmCurrentGoal,
@@ -63,6 +65,7 @@ function isTaskDone(status: string) {
 export async function getInternDashboardPageData(
   userId: string
 ): Promise<InternDashboardPageData> {
+  const supabase = await createClient();
   const today = getLocalDateString();
   const base = await getInternDashboardData(userId);
   const errors: string[] = [];
@@ -70,13 +73,20 @@ export async function getInternDashboardPageData(
   if (base.profileError) errors.push(base.profileError);
   if (base.managerError) errors.push(base.managerError);
 
+  const teamProjects = base.profile?.team_id
+    ? base.projects.filter((project) => project.team_id === base.profile?.team_id)
+    : [];
+
+  // Stay on this team's projects only — never fall back to other teams.
+  const projectPool = teamProjects;
+
   const activeProject =
-    base.projects.find((project) =>
+    projectPool.find((project) =>
       ["planning", "active", "in_progress", "under_review"].includes(
         project.status
       )
     ) ??
-    base.projects[0] ??
+    projectPool[0] ??
     null;
 
   const milestones = activeProject
@@ -85,21 +95,38 @@ export async function getInternDashboardPageData(
 
   const internshipTimeline = buildInternshipTimeline(activeProject, milestones, today);
   const datesConfigured = hasInternshipProjectDates(activeProject);
-  const { weeks: timelineWeeks, moreWeeks: moreTimelineWeeks } =
-    buildTimelinePreview(internshipTimeline, 6, datesConfigured);
+  const preview = buildTimelinePreview(internshipTimeline, 6, datesConfigured);
+  const timelineWeeks: PmTimelineWeek[] = preview.weeks.map((week) => ({
+    weekNumber: week.weekNumber,
+    title: `Week ${week.weekNumber} · ${week.phase}`,
+    state: week.state,
+  }));
+  const moreTimelineWeeks = preview.moreWeeks;
   const currentTimelineWeek = getCurrentTimelineWeek(
     internshipTimeline,
     datesConfigured
   );
 
+  const fallbackGoalTitle = currentTimelineWeek
+    ? currentTimelineWeek.mainTasks?.trim() ||
+      currentTimelineWeek.expectedDeliverables?.trim() ||
+      currentTimelineWeek.phase
+    : null;
+
+  const teamGoalText =
+    base.profile?.team_id && currentTimelineWeek
+      ? await getTeamWeekGoal(
+          supabase,
+          base.profile.team_id,
+          currentTimelineWeek.weekNumber
+        )
+      : null;
+
   const currentGoal: PmCurrentGoal | null = currentTimelineWeek
     ? {
         weekNumber: currentTimelineWeek.weekNumber,
-        title:
-          currentTimelineWeek.mainTasks?.trim() ||
-          currentTimelineWeek.expectedDeliverables?.trim() ||
-          currentTimelineWeek.phase,
-        daysLeft: Math.max(0, daysBetween(today, currentTimelineWeek.weekEnd)),
+        title: teamGoalText?.trim() || fallbackGoalTitle || currentTimelineWeek.phase,
+        daysLeft: getDaysLeftInWeek(today, currentTimelineWeek.weekEnd),
       }
     : null;
 
@@ -107,13 +134,12 @@ export async function getInternDashboardPageData(
     ? base.tasks.filter((task) => task.project_id === activeProject.id)
     : base.tasks;
 
-  const currentWeek =
-    activeProject?.start_date
-      ? getWeekByNumber(
-          calculateProjectWeeks(activeProject.start_date, activeProject.deadline),
-          getCurrentProjectWeekNumber(activeProject.start_date, today)
-        )
-      : null;
+  const cohortWeeks = calculateMondayAlignedWeeks(INTERNSHIP_COHORT_START_DATE);
+  const currentWeekNumber = getCurrentProjectWeekNumber(
+    INTERNSHIP_COHORT_START_DATE,
+    today
+  );
+  const currentWeek = getWeekByNumber(cohortWeeks, currentWeekNumber);
 
   const relevantTasks = projectTasks.filter((task) => {
     if (!task.due_date) {
@@ -128,10 +154,15 @@ export async function getInternDashboardPageData(
     return false;
   });
 
-  const todayTasks = sortTasksForDisplay(relevantTasks);
-  const tasksDone = todayTasks.filter(
-    (task) => isTaskCompleted(task) || isTaskApproved(task)
-  ).length;
+  const todayTasks = sortTasksForDisplay(relevantTasks).sort((left, right) => {
+    const leftAt = left.created_at ?? "";
+    const rightAt = right.created_at ?? "";
+    if (leftAt && rightAt && leftAt !== rightAt) {
+      return rightAt.localeCompare(leftAt);
+    }
+    return right.id.localeCompare(left.id);
+  });
+  const tasksDone = todayTasks.filter((task) => isTaskCompleted(task)).length;
 
   const todayMeetings = base.meetings.filter(
     (meeting) =>

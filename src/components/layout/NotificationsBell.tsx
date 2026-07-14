@@ -51,6 +51,10 @@ export function NotificationsBell({
 
   useEffect(() => {
     loadNotifications();
+    const interval = window.setInterval(() => {
+      loadNotifications();
+    }, 15000);
+    return () => window.clearInterval(interval);
   }, [loadNotifications]);
 
   async function handleMarkRead(notification: Notification) {

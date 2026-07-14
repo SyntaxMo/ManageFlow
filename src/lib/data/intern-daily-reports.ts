@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import type { DailyReport, Profile, ReportFile } from "@/lib/db/types";
+import type { DailyReport, Profile, ReportFile, Task } from "@/lib/db/types";
 import { getLocalDateString } from "@/lib/db/status";
 import { DAILY_REPORT_FILE_CATEGORY } from "@/lib/reports/constants";
 
 export type InternDailyReportsPageData = {
   todayReport: DailyReport | null;
   todayFile: ReportFile | null;
+  todayTasks: Task[];
   teamRows: Array<{
     member: Profile;
     submitted: boolean;
@@ -46,6 +47,19 @@ export async function loadInternDailyReportsPage(
     }
   }
 
+  const { data: taskRows, error: tasksError } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("assigned_to", profile.id)
+    .eq("due_date", today)
+    .order("title");
+
+  if (tasksError) {
+    console.error("Failed to load today's tasks:", tasksError.message);
+  }
+
+  const todayTasks = (taskRows ?? []) as Task[];
+
   let teammates: Profile[] = [];
   if (profile.team_id) {
     const { data } = await supabase
@@ -81,6 +95,7 @@ export async function loadInternDailyReportsPage(
   return {
     todayReport: (todayReport as DailyReport | null) ?? null,
     todayFile,
+    todayTasks,
     teamRows: teammates.map((member) => ({
       member,
       submitted: submittedIds.has(member.id),
